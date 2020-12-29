@@ -3,3 +3,4 @@ cock: uint16
 hi: uint32
 ass: array
 ass0: array
+uint8: uint8
