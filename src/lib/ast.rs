@@ -1,4 +1,4 @@
-#[derive(Clone, Copy, PartialEq, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Type {
     Uint8,
     Uint16,
@@ -8,9 +8,9 @@ pub enum Type {
     Int32,
     Float,
     String,
-    Flag,
-    Array,
-    Tuple,
+    Flag, // { variants: Vec<String> },
+    Array { r#type: Box<Type> },
+    Tuple, // { types: Vec<Type> },
 }
 
 pub type Node = (String, Type);
