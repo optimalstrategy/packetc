@@ -91,7 +91,7 @@ complex_type: (
 )
 ```
 
-Implementation:
+**Implementation:**
 Uses [peg](https://github.com/kevinmehall/rust-peg) for defining parsing.
 
 The general idea is:
