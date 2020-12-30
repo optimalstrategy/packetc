@@ -95,7 +95,7 @@ if __name__ == "__main__":
     total_size = 0
     with open(OUTPUT_FILENAME, "w") as f:
         for _ in range(N_LINES):
-            if sz := MAX_FILE_SIZE_IN_KB and sz > total_size / 1024:
+            if max_size := MAX_FILE_SIZE_IN_KB and total_size / 1024 >= max_size:
                 break
             line = generate_line() + "\n"
             total_size += len(line)
