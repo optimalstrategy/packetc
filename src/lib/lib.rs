@@ -5,6 +5,7 @@ use peg::str::LineCol;
 use std::fs;
 
 pub mod ast;
+pub mod gen;
 pub mod parser;
 
 fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {

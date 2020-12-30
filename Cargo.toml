@@ -1,5 +1,5 @@
 [package]
-name = "packet-parser"
+name = "packetc"
 version = "0.1.0"
 authors = ["jprochazk <honza.spacir@gmail.com>"]
 edition = "2018"
@@ -10,7 +10,7 @@ edition = "2018"
 peg = { version = "0.6.3" }
 
 [lib]
-name = "parser"
+name = "libpacketc"
 path = "src/lib/lib.rs"
 
 [[bin]]
