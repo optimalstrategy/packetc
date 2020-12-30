@@ -116,6 +116,78 @@ mod test {
     use super::*;
 
     #[test]
+    fn parse_whitespace_before_array_bracket() {
+        let test_str = r#"
+arr: uint8 []
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_undefined_type() {
+        let test_str = r#"
+aaa: uint
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_unclosed_tuple_parentheses() {
+        let test_str = r#"
+aaa: (x: float, y: float
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_unclosed_flag_brackets() {
+        let test_str = r#"
+aaa: { A, B 
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_unclosed_array_brackets() {
+        let test_str = r#"
+aaa: uint8[
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_reserved_identifier() {
+        let test_str = r#"
+uint8: uint8
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_first_char_numeric_bad_identifier() {
+        let test_str = r#"
+0aaa: uint8
+"#;
+        pkt::schema(test_str).unwrap_err();
+    }
+
+    #[test]
+    fn parse_comment() {
+        let test_str = r#"
+# this is a comment.
+"#;
+        pkt::schema(test_str).unwrap();
+    }
+
+    #[test]
+    fn parse_comment_right_of_line() {
+        let test_str = r#"
+aaa: uint8 # this is a comment placed to the right of a line.
+"#;
+        pkt::schema(test_str).unwrap();
+    }
+
+    #[test]
     fn parse_numeric() {
         let test_str = r#"
 u8: uint8
