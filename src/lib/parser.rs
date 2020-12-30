@@ -103,7 +103,7 @@ peg::parser!(pub grammar pkt() for str {
 
 // TODO: check AST instead of .unwrap()
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
 
     #[test]
