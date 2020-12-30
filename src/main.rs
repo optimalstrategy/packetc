@@ -1,7 +1,7 @@
-extern crate libpacketc;
+extern crate lib;
 
 fn main() {
-    match libpacketc::parse_file("test.pkt") {
+    match lib::parse_file("test.pkt") {
         Ok(ast) => println!("{:#?}", ast),
         Err(err) => println!("Parsing failed: {}", err),
     };

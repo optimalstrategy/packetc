@@ -10,7 +10,7 @@ edition = "2018"
 peg = { version = "0.6.3" }
 
 [lib]
-name = "libpacketc"
+name = "lib"
 path = "src/lib/lib.rs"
 
 [[bin]]

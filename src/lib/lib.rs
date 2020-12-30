@@ -27,11 +27,26 @@ fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
     out_str
 }
 
-pub fn parse_string(s: &str) -> Result<ast::AST, String> {
-    parser::pkt::schema(s).map_err(|err| pretty_error(s, err))
+pub fn parse(content: &str) -> Result<ast::AST, String> {
+    parser::pkt::schema(content).map_err(|err| pretty_error(content, err))
 }
 
 pub fn parse_file(path: &str) -> Result<ast::AST, String> {
     let file = fs::read_to_string(path).map_err(|_| format!("Failed to read {}", path))?;
-    parser::pkt::schema(&file).map_err(|err| pretty_error(&file, err))
+    parse(&file)
+}
+
+#[cfg(test)]
+mod tests {
+
+    #[test]
+    fn parse_file() {
+        super::parse_file("resource/test.pkt").unwrap();
+    }
+
+    #[test]
+    fn parse_str() {
+        let content = include_str!("../../resource/test.pkt");
+        super::parse(content).unwrap();
+    }
 }

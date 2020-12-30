@@ -1,9 +1,10 @@
 test: uint8 
-cock: uint16 
+hello: uint16 
 hi: uint32 
+ # this is a comment
 # yo: uint8 
-ass: uint8[] # this should not parse
-ass2: uint8[][] 
+aaa: uint8[] # this should not parse
+aaa2: uint8[][] 
 flag: { 
     VARIANT_A, 
     VARIANT_B  
