@@ -8,7 +8,7 @@ pub mod ast;
 pub mod parser;
 
 fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
-    let token = file.chars().nth(err.location.offset).unwrap();
+    let token = file.chars().nth(err.location.offset).unwrap_or('\0');
     format!(
         "Unexpected token '{}' at line {}, column {}, expected one of {}",
         token,
@@ -22,7 +22,11 @@ fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
     )
 }
 
+pub fn parse_string(s: &str) -> Result<ast::AST, String> {
+    parser::pkt::schema(s).map_err(|err| pretty_error(s, err))
+}
+
 pub fn parse_file(path: &str) -> Result<ast::AST, String> {
-    let file = fs::read_to_string(path).expect(&format!("Failed to read {}", path));
+    let file = fs::read_to_string(path).map_err(|_| format!("Failed to read {}", path))?;
     parser::pkt::schema(&file).map_err(|err| pretty_error(&file, err))
 }
