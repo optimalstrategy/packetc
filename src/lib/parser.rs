@@ -110,17 +110,23 @@ peg::parser!(pub grammar pkt() for str {
         }
 });
 
-// TODO: check AST instead of .unwrap()
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    use peg::str::LineCol;
 
     #[test]
     fn parse_whitespace_before_array_bracket() {
         let test_str = r#"
 arr: uint8 []
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 2,
+            column: 12,
+            offset: 12,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -128,7 +134,12 @@ arr: uint8 []
         let test_str = r#"
 aaa: uint
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 2,
+            column: 6,
+            offset: 6,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -136,7 +147,12 @@ aaa: uint
         let test_str = r#"
 aaa: (x: float, y: float
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 3,
+            column: 1,
+            offset: 26,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -144,7 +160,12 @@ aaa: (x: float, y: float
         let test_str = r#"
 aaa: { A, B 
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 3,
+            column: 1,
+            offset: 14,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -152,7 +173,12 @@ aaa: { A, B
         let test_str = r#"
 aaa: uint8[
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 2,
+            column: 11,
+            offset: 11,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -160,7 +186,12 @@ aaa: uint8[
         let test_str = r#"
 uint8: uint8
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 2,
+            column: 1,
+            offset: 1,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -168,7 +199,12 @@ uint8: uint8
         let test_str = r#"
 0aaa: uint8
 "#;
-        pkt::schema(test_str).unwrap_err();
+        let expected = LineCol {
+            line: 2,
+            column: 1,
+            offset: 1,
+        };
+        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
     }
 
     #[test]
@@ -176,7 +212,8 @@ uint8: uint8
         let test_str = r#"
 # this is a comment.
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -184,7 +221,8 @@ uint8: uint8
         let test_str = r#"
 aaa: uint8 # this is a comment placed to the right of a line.
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![("aaa".to_string(), ast::Type::Uint8)];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -198,7 +236,16 @@ i16: int16
 i32: int32
 f32: float
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![
+            ("u8".to_string(), ast::Type::Uint8),
+            ("u16".to_string(), ast::Type::Uint16),
+            ("u32".to_string(), ast::Type::Uint32),
+            ("i8".to_string(), ast::Type::Int8),
+            ("i16".to_string(), ast::Type::Int16),
+            ("i32".to_string(), ast::Type::Int32),
+            ("f32".to_string(), ast::Type::Float),
+        ];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -212,21 +259,123 @@ i16: int16[]
 i32: int32[]
 f32: float[]
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![
+            (
+                "u8".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Uint8),
+                },
+            ),
+            (
+                "u16".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Uint16),
+                },
+            ),
+            (
+                "u32".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Uint32),
+                },
+            ),
+            (
+                "i8".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Int8),
+                },
+            ),
+            (
+                "i16".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Int16),
+                },
+            ),
+            (
+                "i32".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Int32),
+                },
+            ),
+            (
+                "f32".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Float),
+                },
+            ),
+        ];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
     fn parse_array_nested() {
         let test_str = r#"
 u8: uint8[][]
-u16: uint16[][][][][]
+u16: uint16[][]
 u32: uint32[][]
 i8: int8[][]
 i16: int16[][]
 i32: int32[][]
 f32: float[][]
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![
+            (
+                "u8".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Uint8),
+                    }),
+                },
+            ),
+            (
+                "u16".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Uint16),
+                    }),
+                },
+            ),
+            (
+                "u32".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Uint32),
+                    }),
+                },
+            ),
+            (
+                "i8".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Int8),
+                    }),
+                },
+            ),
+            (
+                "i16".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Int16),
+                    }),
+                },
+            ),
+            (
+                "i32".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Int32),
+                    }),
+                },
+            ),
+            (
+                "f32".to_string(),
+                ast::Type::Array {
+                    r#type: Box::new(ast::Type::Array {
+                        r#type: Box::new(ast::Type::Float),
+                    }),
+                },
+            ),
+        ];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -234,7 +383,13 @@ f32: float[][]
         let test_str = r#"
 flag: { A, B }
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "flag".to_string(),
+            ast::Type::Flag {
+                variants: vec!["A".to_string(), "B".to_string()],
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -242,7 +397,15 @@ flag: { A, B }
         let test_str = r#"
 flag: { A, B }[]
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "flag".to_string(),
+            ast::Type::Array {
+                r#type: Box::new(ast::Type::Flag {
+                    variants: vec!["A".to_string(), "B".to_string()],
+                }),
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -258,7 +421,21 @@ tuple: (
     f32: float
 )
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "tuple".to_string(),
+            ast::Type::Tuple {
+                elements: vec![
+                    ("u8".to_string(), ast::Type::Uint8),
+                    ("u16".to_string(), ast::Type::Uint16),
+                    ("u32".to_string(), ast::Type::Uint32),
+                    ("i8".to_string(), ast::Type::Int8),
+                    ("i16".to_string(), ast::Type::Int16),
+                    ("i32".to_string(), ast::Type::Int32),
+                    ("f32".to_string(), ast::Type::Float),
+                ],
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -269,7 +446,16 @@ tuple: (
     f32: float,
 )
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "tuple".to_string(),
+            ast::Type::Tuple {
+                elements: vec![
+                    ("u8".to_string(), ast::Type::Uint8),
+                    ("f32".to_string(), ast::Type::Float),
+                ],
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -280,7 +466,18 @@ tuple: (
     f32: float,
 )[]
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "tuple".to_string(),
+            ast::Type::Array {
+                r#type: Box::new(ast::Type::Tuple {
+                    elements: vec![
+                        ("u8".to_string(), ast::Type::Uint8),
+                        ("f32".to_string(), ast::Type::Float),
+                    ],
+                }),
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -291,7 +488,26 @@ tuple: (
     f32: float[],
 )
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "tuple".to_string(),
+            ast::Type::Tuple {
+                elements: vec![
+                    (
+                        "u8".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::Uint8),
+                        },
+                    ),
+                    (
+                        "f32".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::Float),
+                        },
+                    ),
+                ],
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -309,7 +525,50 @@ complex_type: (
     )[]
 )
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "complex_type".to_string(),
+            ast::Type::Tuple {
+                elements: vec![
+                    (
+                        "flag".to_string(),
+                        ast::Type::Flag {
+                            variants: vec!["A".to_string(), "B".to_string()],
+                        },
+                    ),
+                    (
+                        "positions".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::Tuple {
+                                elements: vec![
+                                    ("x".to_string(), ast::Type::Float),
+                                    ("y".to_string(), ast::Type::Float),
+                                ],
+                            }),
+                        },
+                    ),
+                    (
+                        "names".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::String),
+                        },
+                    ),
+                    (
+                        "values".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::Tuple {
+                                elements: vec![
+                                    ("a".to_string(), ast::Type::Uint32),
+                                    ("b".to_string(), ast::Type::Int32),
+                                    ("c".to_string(), ast::Type::Uint8),
+                                    ("d".to_string(), ast::Type::Uint8),
+                                ],
+                            }),
+                        },
+                    ),
+                ],
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 
     #[test]
@@ -326,6 +585,49 @@ complex_type: (
       )[]
 )
 "#;
-        pkt::schema(test_str).unwrap();
+        let expected: ast::AST = vec![(
+            "complex_type".to_string(),
+            ast::Type::Tuple {
+                elements: vec![
+                    (
+                        "flag".to_string(),
+                        ast::Type::Flag {
+                            variants: vec!["A".to_string(), "B".to_string()],
+                        },
+                    ),
+                    (
+                        "positions".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::Tuple {
+                                elements: vec![
+                                    ("x".to_string(), ast::Type::Float),
+                                    ("y".to_string(), ast::Type::Float),
+                                ],
+                            }),
+                        },
+                    ),
+                    (
+                        "names".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::String),
+                        },
+                    ),
+                    (
+                        "values".to_string(),
+                        ast::Type::Array {
+                            r#type: Box::new(ast::Type::Tuple {
+                                elements: vec![
+                                    ("a".to_string(), ast::Type::Uint32),
+                                    ("b".to_string(), ast::Type::Int32),
+                                    ("c".to_string(), ast::Type::Uint8),
+                                    ("d".to_string(), ast::Type::Uint8),
+                                ],
+                            }),
+                        },
+                    ),
+                ],
+            },
+        )];
+        assert_eq!(pkt::schema(test_str).unwrap(), expected);
     }
 }
