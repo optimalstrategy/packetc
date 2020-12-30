@@ -1,18 +1,25 @@
-binary serialization schema format
+Binary serialization schema format
 
-**Why?**
-I would like to use something like flatbuffers - but you can't even verify incoming buffers with the Rust version. Formats like JSON, CBOR, BSON, MessagePack are easy to use, but they are extremely wasteful. Not only in raw size, but also speed and overall efficiency, ergonomics, because all work is done at runtime- this is bad for performance, memory usage, makes development difficult due to the lack of a schema, which implies the (de)serialization has to be manually crafted and tested, which promotes "dumb" bugs caused by inattention and slows down development.
+**Why another one?**
+None of the other formats exactly fit my needs - I need to pass data to/from JS in a low-bandwidth, low-latency way. This library will be a lot simpler than all of the popular ones:
+ * No versioning
+ * No namespacing
+ * No type definitions
+ * No RPC 
+ * Only a few basic types
+   * You can compose them to form more complex types, but only linearly - no recursive types.
 
-* Safe meaning that a crafted malicious packet won't crash the server, but will only cause the connection to be dropped, with no additional harm.
-* Small meaning the packets will serialize into something that only contains the absolutely necessary information, and besides bit-packing and compression, it would be impossible to shrink the packet any further.
+Why use a schema? Schema-less formats like JSON, CBOR, BSON, MessagePack are easy to use, but they are extremely wasteful, and error-prone. It's hard to maintain compatibility between different languages and environments. A schema makes it easy to keep packet parsing in sync, and allows for many optimizations.
+I want this library to be fast, produce small packets, and be safe:
+
+* Safe, meaning that a crafted malicious packet won't crash the server, but will only cause the connection an error to be output somewhere - you can quickly drop the connection.
+* Small, meaning the packets will serialize into something that only contains the absolutely necessary information, and besides bit-packing and compression, it would be impossible to shrink the packet any further by hand.
 * Fast meaning in the best, most common case (the packet is not malicious), parsing packets won't be a bottleneck.
 
 **What will it look like?**
-Because the target is Rust and JavaScript, the lowest common denominator determines what sort of data we can serialize - in this case that's JS, because all types in JS can be somehow efficiently represented in Rust. 
+Because the target is Rust and JavaScript, the lowest common denominator determines what the format must look like. In this case JS, because all types in JS can be somehow efficiently represented in Rust. 
 
-Syntax:
-
-Comments are lines starting with '#'
+Here's some syntax:
 
 Symbols are declared as `identifier: type;`, where `type` is any of:
 - uint8, uint16, uint32
@@ -37,7 +44,11 @@ Symbols are declared as `identifier: type;`, where `type` is any of:
     - rs: struct { name0: type0, name1: type1, ..., nameN: typeN }
     - js: { "name0": type0, "name1": type1, ..., "nameN": typeN }
 
+Comments start with #, and are only single-line.
+
 ```
+# This is a comment.
+# Below is what a fairly complex packet may look like
 u8: uint8
 u16: uint16
 u32: uint32
@@ -81,6 +92,14 @@ complex_type: (
 ```
 
 Implementation:
-Use PEG for parsing, construct AST, then
-1. Rust: struct definition + parse/write impl >>> <schema_filename>.rs
-2. TS: interface + parser/write impl >>> <schema_filename>.ts
+Uses [peg](https://github.com/kevinmehall/rust-peg) for defining parsing.
+
+The general idea is:
+1. Load a schema file
+2. Run it through the parser, generating an AST
+3. Traverse the AST, generating the structs/interfaces and the serialize/deserialize implementations
+4. Write it to a .rs/.ts file
+
+**Status**
+* Parser: 100%
+* Generator: 0%
