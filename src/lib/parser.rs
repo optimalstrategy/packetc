@@ -171,6 +171,14 @@ uint8: uint8
     }
 
     #[test]
+    fn parse_comment_right_of_line() {
+        let test_str = r#"
+aaa: uint8 # this is a comment placed to the right of a line.
+"#;
+        pkt::schema(test_str).unwrap();
+    }
+
+    #[test]
     fn parse_numeric() {
         let test_str = r#"
 u8: uint8
