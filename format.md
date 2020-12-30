@@ -16,26 +16,26 @@ Comments are lines starting with '#'
 
 Symbols are declared as `identifier: type;`, where `type` is any of:
 - uint8, uint16, uint32
-    rs: u8, u16, u32
-    js: number
+    - rs: u8, u16, u32
+    - js: number
 - int8, int16, int32
-    rs: i8, i16, i32
-    js: number
+    - rs: i8, i16, i32
+    - js: number
 - float
-    rs: f32
-    js: number
+    - rs: f32
+    - js: number
 - string
-    rs: String
-    js: string
+    - rs: String
+    - js: string
 - flag, in the form `identifier: { VARIANT_A, VARIANT_B }`
-    rs: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
-    js: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
+    - rs: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
+    - js: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
 - array, in the form `identifier: type[]`, with nesting: `identifier: type[][]`
-    rs: Vec<type>
-    js: Array<type>
+    - rs: Vec<type>
+    - js: Array<type>
 - tuple, in the form `identifier: (name0:type0, name1:type1, ..., nameN:typeN)`
-    rs: struct { name0: type0, name1: type1, ..., nameN: typeN }
-    js: { "name0": type0, "name1": type1, ..., "nameN": typeN }
+    - rs: struct { name0: type0, name1: type1, ..., nameN: typeN }
+    - js: { "name0": type0, "name1": type1, ..., "nameN": typeN }
 
 ```
 u8: uint8

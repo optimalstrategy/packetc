@@ -1,10 +1,14 @@
 use super::ast;
 
 peg::parser!(pub grammar pkt() for str {
+    /// Parses a single-line comment
     /// Parses whitespace
     rule _() = [' ']*
     /// Parses newlines
-    rule __() = ['\n'|'\r']*
+    rule __() = ['\n'|'\r']* !"#"
+
+    rule comment()
+        = "#" _ [_]* "\n"
 
     /// Parses reserved keywords
     rule reserved()
@@ -64,7 +68,15 @@ peg::parser!(pub grammar pkt() for str {
         = __ i:ident() _ ":" _ t:r#type() __ { (i, t) }
         / expected!("declaration")
 
+    rule line() -> Option<ast::Node>
+        = __ comment() __ { None }
+        / __ s:(decl()) __ { Some(s) }
+
     /// Parses a schema file
     pub rule schema() -> ast::AST
-        = __ s:(decl()*) __ { s }
+        = __ lines:(line()*) {
+            lines.into_iter()
+                .filter_map(|x| x)
+                .collect()
+        }
 });

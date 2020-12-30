@@ -1,5 +1,6 @@
 test: uint8
 cock: uint16
 hi: uint32
+# yo: uint8
 ass: uint8[]
 ass2: uint8[][]
