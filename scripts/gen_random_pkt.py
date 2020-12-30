@@ -2,16 +2,20 @@ import random
 import string
 
 N_LINES = 10
+OUTPUT_FILENAME = "fuzz.pkt"
+SEED = None  # set to a number for a fixed seed
+
+MAX_FILE_SIZE_IN_KB = None  # this assumes that every character is 1b
 
 MAX_COMMENT_LENGTH = 100
 MAX_IDENTIFIER_LENGTH = 100
 MAX_WHITESPACE_LENGTH = 10
 MAX_WHITESPACE_WITH_LINES_LENGTH = 2
-WHITESPACE_WEIGHTS = [0.5, 0.25, 0.25]  # space, \n, \r\n
+WHITESPACE_WEIGHTS = [0.7, 0.3]  # space, newline
 
-MAX_DEPTH = 1
+MAX_DEPTH = 3
 MAX_TUPLE_ELEMENTS = 100
-MAX_ARRAY_DIMENSIONS = 25
+MAX_ARRAY_DIMENSIONS = 10
 
 
 PKT_TYPES = ["uint8", "uint16", "uint32", "int8", "int16", "int32", "float"]
@@ -30,7 +34,7 @@ def whitespace() -> str:
 
 def whitespace_with_newlines() -> str:
     return "".join(
-        random.choices([" ", "\n", "\n"], WHITESPACE_WEIGHTS)[0]
+        random.choices([" ", "\n"], WHITESPACE_WEIGHTS)[0]
         for _ in range(random.randint(0, MAX_WHITESPACE_WITH_LINES_LENGTH))
     )
 
@@ -44,16 +48,19 @@ def generate_non_array_type(depth: int = 0) -> str:
     if kind == "tuple" and depth < MAX_DEPTH:
         op = "(" + __()
         cl = ")" + __()
-        tuples = ",".join([
-            generate_type(depth + 1) + whitespace_with_newlines()
-            for _ in range(random.randint(1, MAX_TUPLE_ELEMENTS))
-        ])
+        tuples = ",".join(
+            [
+                generate_type(depth + 1) + whitespace_with_newlines()
+                for _ in range(random.randint(1, MAX_TUPLE_ELEMENTS))
+            ]
+        )
         return f"{identifier()}:{_w()}{op}{tuples}{cl}"
     elif kind == "number" or depth >= MAX_DEPTH:
         return f"{identifier()}:{_w()}{random.choice(PKT_TYPES)}"
     elif kind == "flag":
         variant_s = ",".join(
-            identifier().upper() + whitespace_with_newlines() for _ in range(random.randint(1, 3))
+            identifier().upper() + whitespace_with_newlines()
+            for _ in range(random.randint(1, 3))
         )
         op = "{" + __()
         cl = "}" + __()
@@ -66,7 +73,7 @@ def generate_type(depth: int = 0) -> str:
     if depth > MAX_DEPTH:
         return ""
 
-    ty = generate_non_array_type(depth)
+    ty = generate_non_array_type(depth).strip()
     if random.random() < 0.25:
         ty += "[]" * random.randint(1, MAX_ARRAY_DIMENSIONS)
     return ty
@@ -81,7 +88,15 @@ def generate_line() -> str:
     return generate_type()
 
 
-
 if __name__ == "__main__":
-    for _line in range(N_LINES):
-        print(generate_line())
+    if SEED is not None:
+        random.seed(SEED)
+
+    total_size = 0
+    with open(OUTPUT_FILENAME, "w") as f:
+        for _ in range(N_LINES):
+            if sz := MAX_FILE_SIZE_IN_KB and sz > total_size / 1024:
+                break
+            line = generate_line() + "\n"
+            total_size += len(line)
+            f.write(line)
