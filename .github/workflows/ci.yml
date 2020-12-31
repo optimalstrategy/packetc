@@ -1,0 +1,62 @@
+on: [push, pull_request]
+
+name: Continuous integration
+
+jobs:
+  # runs typescript build + test
+  ts:
+    name: TypeScript 
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node_version:
+          - 14
+          - 15
+    steps:
+      # get code + setup node toolchain
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Get Node toolchain
+        uses: actions/setup-node@v2
+        with:
+          node-version: ${{ matrix.node_version }}
+      # install, build, test
+      - run: cd packet_ts
+      - run: npm install
+      - run: npm run build
+      - run: npm run test
+  # runs rust build + test
+  rust:
+    name: rust
+    runs-on: ubuntu-latest
+    steps:
+      # get code + setup rust toolchain
+      - name: Checkout code
+        uses: actions/checkout@v2
+      - name: Get Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - run: rustup component add rustfmt clippy
+
+      # Run lints and tests
+      - name: Cargo check
+        uses: actions-rs/cargo@v1
+        with: 
+          command: check
+      - name: Style lint
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+      - name: Clippy lint
+        uses: actions-rs/cargo@v1
+        with: 
+          command: check
+          args: -- -D --warnings
+      - name: Tests
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
