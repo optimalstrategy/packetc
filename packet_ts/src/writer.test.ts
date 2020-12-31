@@ -50,7 +50,7 @@ describe("Reader scalar", function () {
         });
     }
 
-    it(`write_slice`, function () {
+    it(`write_string`, function () {
         const value = "testing";
         const expected = new TextEncoder().encode("testing");
         const writer = new Writer(value.length);

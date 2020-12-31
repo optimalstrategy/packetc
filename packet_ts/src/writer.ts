@@ -6,9 +6,23 @@ export class Writer {
     private arrayView: Uint8Array;
     private view: DataView;
 
-    constructor(capacity?: number) {
+    /**
+     * Default constructor
+     */
+    constructor();
+    /**
+     * Construct with capacity
+     * @param capacity 
+     */
+    constructor(capacity: number);
+    /**
+     * Construct from an existing buffer
+     * @param buffer 
+     */
+    constructor(buffer: ArrayBuffer);
+    constructor(arg0?: number | ArrayBuffer) {
         this.pointer = 0;
-        const buffer = new ArrayBuffer(capacity ?? 0);
+        const buffer = arg0 instanceof ArrayBuffer ? arg0 : new ArrayBuffer(arg0 ?? 0);
         this.arrayView = new Uint8Array(buffer);
         this.view = new DataView(buffer);
     }

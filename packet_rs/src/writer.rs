@@ -6,6 +6,8 @@ pub struct Writer {
 }
 
 impl Writer {
+    // TODO: allow re-using storage by adding with_buffer constructor
+
     pub fn new() -> Writer {
         Writer { data: Vec::new() }
     }
@@ -14,6 +16,10 @@ impl Writer {
         Writer {
             data: Vec::with_capacity(capacity),
         }
+    }
+
+    pub fn with_buffer(buffer: Vec<u8>) -> Writer {
+        Writer { data: buffer }
     }
 
     /// Writes a single u8
@@ -65,7 +71,8 @@ impl Writer {
     }
 
     pub fn finish(mut self) -> Vec<u8> {
-        std::mem::replace(&mut self.data, Vec::new())
+        std::mem::take(&mut self.data)
+        //std::mem::replace(&mut self.data, Vec::new())
     }
 }
 

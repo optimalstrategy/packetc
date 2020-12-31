@@ -49,7 +49,7 @@ describe("Reader scalar", function () {
         });
     }
 
-    it(`read_slice`, function () {
+    it(`read_string`, function () {
         const value = new TextEncoder().encode("testing");
         const expected = "testing";
         const reader = new Reader(value.buffer);

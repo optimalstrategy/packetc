@@ -9,7 +9,7 @@ export class Reader {
     }
 
     remaining(): number {
-        return this.pointer;
+        return this.view.byteLength - this.pointer;
     }
 
     private advance(by: number) {
