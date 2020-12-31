@@ -51,35 +51,43 @@ export class Writer {
         this.ensure(1);
         this.view.setUint8(this.advance(1), value);
     }
+
     write_uint16(value: number) {
         this.ensure(2);
         this.view.setUint16(this.advance(2), value, true);
     }
+
     write_uint32(value: number) {
         this.ensure(4);
         this.view.setUint32(this.advance(4), value, true);
     }
+
     write_int8(value: number) {
         this.ensure(1);
         this.view.setInt8(this.advance(1), value);
     }
+
     write_int16(value: number) {
         this.ensure(2);
         this.view.setInt16(this.advance(2), value, true);
     }
+
     write_int32(value: number) {
         this.ensure(4);
         this.view.setInt32(this.advance(4), value, true);
     }
+
     write_float(value: number) {
         this.ensure(4);
         this.view.setFloat32(this.advance(4), value, true);
     }
+
     write_slice(value: Uint8Array) {
         this.ensure(value.byteLength);
         const pos = this.advance(value.byteLength);
         this.arrayView.set(value, pos);
     }
+
     finish(): Uint8Array {
         return this.arrayView.slice(0, this.pointer);
     }

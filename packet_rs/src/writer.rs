@@ -6,8 +6,6 @@ pub struct Writer {
 }
 
 impl Writer {
-    // TODO: allow re-using storage by adding with_buffer constructor
-
     pub fn new() -> Writer {
         Writer { data: Vec::new() }
     }
@@ -18,6 +16,7 @@ impl Writer {
         }
     }
 
+    /// Creates a Writer which uses an existing buffer as its storage
     pub fn with_buffer(buffer: Vec<u8>) -> Writer {
         Writer { data: buffer }
     }
@@ -70,9 +69,9 @@ impl Writer {
         self.data.extend_from_slice(value);
     }
 
+    /// Returns the internal buffer, replacing it with an empty one
     pub fn finish(mut self) -> Vec<u8> {
         std::mem::take(&mut self.data)
-        //std::mem::replace(&mut self.data, Vec::new())
     }
 }
 

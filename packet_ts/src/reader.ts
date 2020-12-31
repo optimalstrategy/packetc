@@ -1,10 +1,12 @@
 
 export class Reader {
     private pointer: number;
+    private arrayView: Uint8Array;
     private view: DataView;
 
     constructor(data: ArrayBuffer) {
         this.pointer = 0;
+        this.arrayView = new Uint8Array(data);
         this.view = new DataView(data);
     }
 
@@ -58,8 +60,8 @@ export class Reader {
     }
 
     // Reads a slice of `len`, does not do bounds checking
-    read_slice(len: number): ArrayBufferLike {
+    read_slice(len: number): Uint8Array {
         const pos = this.advance(len);
-        return this.view.buffer.slice(pos, pos + len);
+        return this.arrayView.slice(pos, pos + len);
     }
 }
