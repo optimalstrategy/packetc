@@ -45,11 +45,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with: 
           command: check
-      - name: Style lint
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
       - name: Clippy lint
         uses: actions-rs/cargo@v1
         with: 
