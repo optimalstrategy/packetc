@@ -88,7 +88,7 @@ export class Writer {
         this.arrayView.set(value, pos);
     }
 
-    finish(): Uint8Array {
-        return this.arrayView.slice(0, this.pointer);
+    finish(): ArrayBuffer {
+        return this.view.buffer.slice(0, this.pointer);
     }
 }
