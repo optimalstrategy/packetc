@@ -21,10 +21,9 @@ jobs:
         with:
           node-version: ${{ matrix.node_version }}
       # install, build, test
-      - run: cd packet_ts
-      - run: npm install
-      - run: npm run build
-      - run: npm run test
+      - run: npm install --prefix packet_ts
+      - run: npm run --prefix packet_ts build
+      - run: npm run --prefix packet_ts test
   # runs rust build + test
   rust:
     name: rust
