@@ -6,6 +6,7 @@ use peg::str::LineCol;
 use std::fs;
 
 pub mod ast;
+pub mod check;
 pub mod parser;
 
 fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
@@ -38,15 +39,21 @@ pub fn parse_file(path: &str) -> Result<ast::AST, String> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
 
     #[test]
-    fn parse_file() {
-        super::parse_file("resource/test.pkt").unwrap();
+    fn parses_file() {
+        parse_file("resource/test.pkt").unwrap();
     }
 
     #[test]
-    fn parse_str() {
+    fn parses_str() {
         let content = include_str!("../../resource/test.pkt");
-        super::parse(content).unwrap();
+        parse(content).unwrap();
+    }
+
+    #[test]
+    fn type_checks_file() {
+        check::type_check(parse_file("resource/test.pkt").unwrap()).unwrap();
     }
 }

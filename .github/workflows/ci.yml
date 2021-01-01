@@ -45,12 +45,19 @@ jobs:
         uses: actions-rs/cargo@v1
         with: 
           command: check
+      - name: Cargo fmt
+        uses: actions-rs/cargo@v1
+        with: 
+          command: fmt --all -- --check
       - name: Clippy lint
         uses: actions-rs/cargo@v1
         with: 
           command: clippy
-          args: -- -D --warnings
+          args: -- -D --warnings -A unused_variables --verbose
       - name: Tests
+        env:
+          RUSTFLAGS: -Zsymbol-mangling-version=v0 -Zmacro-backtrace
+          RUST_BACKTRACE: 1
         uses: actions-rs/cargo@v1
         with:
-          command: test
+          command: test --all --verbose

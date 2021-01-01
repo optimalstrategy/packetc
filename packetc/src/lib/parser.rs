@@ -48,15 +48,10 @@ peg::parser!(pub grammar pkt() for str {
     rule struct_type() -> Struct
         = _ "struct" _ "{" ___ fields:(struct_field()*) ___ "}" { Struct(fields) }
 
-    /// Parses any type in the form `type` or `type[]`
-    rule unresolved_type() -> Unresolved
-        = s:string() a:("[]"?) { Unresolved(s, a.is_some()) }
-
     /// Recursively parses a type
     rule r#type() -> Type
         = e:enum_type() { Type::Enum(e) }
         / s:struct_type() { Type::Struct(s) }
-        / u:unresolved_type() { Type::Unresolved(u) }
 
     /// Parses a declaration in the form `identifier : type`
     rule decl() -> Node
@@ -105,13 +100,13 @@ mod tests {
     #[test]
     fn parse_whitespace_before_array_bracket() {
         let test = r#"
-        arr: uint8 []
+        a: struct { v: uint8 [] }
         "#
         .build();
         let expected = LineCol {
             line: 2,
-            column: 12,
-            offset: 12,
+            column: 22,
+            offset: 22,
         };
         let actual = pkt::schema(&test).unwrap_err().location;
         assert_eq!(actual, expected);
@@ -150,13 +145,13 @@ mod tests {
     #[test]
     fn parse_unclosed_array_brackets() {
         let test = r#"
-        aaa: uint8[
+        a: struct { v: uint8[ }
         "#
         .build();
         let expected = LineCol {
             line: 2,
-            column: 11,
-            offset: 11,
+            column: 21,
+            offset: 21,
         };
         let actual = pkt::schema(&test).unwrap_err().location;
         assert_eq!(actual, expected);
@@ -205,38 +200,15 @@ mod tests {
     #[test]
     fn parse_comment_right_of_line() {
         let test = r#"
-        a: A # this is a comment placed to the right of a line.
+        a: struct { v: uint8 } # this is a comment placed to the right of a line.
         "#
         .build();
         let expected: AST = vec![Node::Decl(
             "a".to_string(),
-            Type::Unresolved(Unresolved("A".to_string(), false)),
-        )];
-        assert_eq!(pkt::schema(&test).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_unresolved() {
-        let test = r#"
-        asdf: A
-        "#
-        .build();
-        let expected: AST = vec![Node::Decl(
-            "asdf".to_string(),
-            Type::Unresolved(Unresolved("A".to_string(), false)),
-        )];
-        assert_eq!(pkt::schema(&test).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_unresolved_array() {
-        let test = r#"
-        asdf: A[]
-        "#
-        .build();
-        let expected: AST = vec![Node::Decl(
-            "asdf".to_string(),
-            Type::Unresolved(Unresolved("A".to_string(), true)),
+            Type::Struct(Struct(vec![(
+                "v".to_string(),
+                Unresolved("uint8".to_string(), false),
+            )])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
