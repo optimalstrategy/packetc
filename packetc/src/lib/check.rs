@@ -9,7 +9,7 @@ use std::rc::Rc;
 // TODO: real error type + report in a nice way
 // TODO: DRY this code
 
-fn get_export(ast: &ast::AST) -> Result<String, String> {
+fn get_export(ast: &[ast::Node]) -> Result<String, String> {
     let mut export = None;
     for node in ast {
         match node {
@@ -24,7 +24,7 @@ fn get_export(ast: &ast::AST) -> Result<String, String> {
     }
 }
 
-fn collect_types(ast: &ast::AST) -> Result<HashMap<String, ast::Type>, String> {
+fn collect_types(ast: &[ast::Node]) -> Result<HashMap<String, ast::Type>, String> {
     let mut cache = HashMap::new();
 
     for node in ast {
