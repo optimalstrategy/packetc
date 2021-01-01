@@ -69,9 +69,11 @@ Uses [peg](https://github.com/kevinmehall/rust-peg) for defining parsing.
 The general idea is:
 1. Load a schema file
 2. Run it through the parser, generating an AST
-3. Traverse the AST, generating the structs/interfaces and the serialize/deserialize implementations
-4. Write it to a .rs/.ts file
+3. Traverse the AST, resolving types and ensuring they are valid
+4. Traverse the resolved AST, generating the structs/interfaces and the serialize/deserialize implementations
+5. Write it to a .rs/.ts file
 
 **Status**
 * Parser: 100%
+* Type-checker: 
 * Generator: 0%
