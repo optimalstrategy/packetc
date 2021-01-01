@@ -1,14 +1,15 @@
-test: uint8 
-hello: uint16 
-hi: uint32 
- # this is a comment
-# yo: uint8 
-aaa: uint8[] # this should not parse
-aaa2: uint8[][] 
-flag: { 
-    VARIANT_A, 
-    VARIANT_B  
+# This is a comment.
+# Below is what a fairly complex packet may look like
+Flag: enum { A, B }
+Position: struct { x: float, y: float }
+Value: struct { 
+  a: uint32, b: int32, c: uint8, d: uint8
 }
-tuple: ( x : float ,
-    y: float
- )
+ComplexType: struct {
+    flag: Flag,
+    positions: Position[],
+    names: string[],
+    values: Value[]
+}
+
+export ComplexType

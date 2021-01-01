@@ -1,17 +1,25 @@
+/// Unresolved is an "unchecked" type, which may be an array type
+///
+/// (identifier, is_array)
+#[derive(Clone, PartialEq, Debug)]
+pub struct Unresolved(pub String, pub bool);
+/// Enum is just a list of its variants, which are plain strings
+#[derive(Clone, PartialEq, Debug)]
+pub struct Enum(pub Vec<String>);
+/// Struct is a list of pairs of `identifier:type`, where `type` may be an array
+#[derive(Clone, PartialEq, Debug)]
+pub struct Struct(pub Vec<(String, Unresolved)>);
 #[derive(Clone, PartialEq, Debug)]
 pub enum Type {
-    Uint8,
-    Uint16,
-    Uint32,
-    Int8,
-    Int16,
-    Int32,
-    Float,
-    String,
-    Flag { variants: Vec<String> },
-    Array { r#type: Box<Type> },
-    Tuple { elements: Vec<Node> },
+    Unresolved(Unresolved),
+    Enum(Enum),
+    /// so we re-use `Base`
+    Struct(Struct),
 }
 
-pub type Node = (String, Type);
+#[derive(Clone, PartialEq, Debug)]
+pub enum Node {
+    Decl(String, Type),
+    Export(String),
+}
 pub type AST = Vec<Node>;

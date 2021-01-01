@@ -1,4 +1,5 @@
 use super::ast;
+use ast::*;
 
 peg::parser!(pub grammar pkt() for str {
     /// Parses whitespace
@@ -12,6 +13,9 @@ peg::parser!(pub grammar pkt() for str {
     rule comment()
         = "#" [ch if ch != '\n']* __
 
+    rule string() -> String
+        = s:$(['a'..='z'|'A'..='Z'|'0'..='9'|'_']*) { s.to_string() }
+
     /// Parses reserved keywords (the base types)
     rule reserved()
         = "uint8"
@@ -22,6 +26,8 @@ peg::parser!(pub grammar pkt() for str {
         / "int32"
         / "float"
         / "string"
+        / "enum"
+        / "struct"
     /// Parses the first character of an identifier, which cannot contain numbers
     rule ident_start() -> String = s:$(['a'..='z'|'A'..='Z'|'_']) { s.to_string() }
     /// Parses any alphanumeric characters as part of an identifier
@@ -30,79 +36,46 @@ peg::parser!(pub grammar pkt() for str {
     rule ident() -> String
         = i:quiet!{ $(!reserved() ident_start() ident_chars()*) } { i.to_string() }
 
-    /// Parses the array base type - this is different from r#type()
-    /// by not including array() in the descent list, which could
-    /// create an infinite loop
-    rule array_type() -> ast::Type
-        = f:flag() { f }
-        / t:tuple() { t }
-        / "uint8" { ast::Type::Uint8 }
-        / "uint16" { ast::Type::Uint16 }
-        / "uint32" { ast::Type::Uint32 }
-        / "int8" { ast::Type::Int8 }
-        / "int16" { ast::Type::Int16 }
-        / "int32" { ast::Type::Int32 }
-        / "float" { ast::Type::Float }
-        / "string" { ast::Type::String }
+    rule enum_variant() -> String
+        = s:ident() ___ ","? ___ { s }
+    /// Parses an enum in the form `identifier: enum { VARIANT_A, ... }`
+    rule enum_type() -> Enum
+        = _ "enum" _ "{" ___ variants:(enum_variant()*) ___ "}" { Enum(variants) }
 
-    /// Parses a array in the form `identifier: type[]`
-    rule array() -> ast::Type
-        = base:array_type() nesting:$("[]"+) {
-            let mut root = ast::Type::Array{ r#type: Box::new(base) };
-            let mut count = nesting.len() / 2;
-            for _ in 1..count {
-                root = ast::Type::Array{ r#type: Box::new(root) };
-            }
-            root
-        }
+    rule struct_field() -> (String, Unresolved)
+        = i:ident() _ ":" _ t:string() a:("[]"?) ___ ","? ___ { (i, Unresolved(t, a.is_some())) }
+    /// Parses a struct in the from `identifier: struct { name: type or type[], ... }
+    rule struct_type() -> Struct
+        = _ "struct" _ "{" ___ fields:(struct_field()*) ___ "}" { Struct(fields) }
 
-    /// Parses a flag in the form `identifier: { VARIANT_A, VARIANT_B }`
-    rule flag() -> ast::Type
-        = "{" ___ variants:$(ident() ** (___ "," ___)) ___ "}" {
-            ast::Type::Flag {
-                variants: variants.split(',')
-                    .map(|s| s.trim().to_string())
-                    .collect()
-            }
-        }
-
-    /// Parses a tuple element in the form `identifier: type`
-    /// it's separate because PEG doesn't allow binding inside of
-    /// nested expressions, so the binding is done here
-    rule tuple_element() -> (String, ast::Type)
-        = i:ident() _ ":" _ t:r#type() ___ ","? ___ { (i, t) }
-
-    /// Parses a tuple in the form
-    rule tuple() -> ast::Type
-        = "(" ___ elements:tuple_element()+ ___ ")" {
-            ast::Type::Tuple { elements }
-        }
+    /// Parses any type in the form `type` or `type[]`
+    rule unresolved_type() -> Unresolved
+        = s:string() a:("[]"?) { Unresolved(s, a.is_some()) }
 
     /// Recursively parses a type
-    rule r#type() -> ast::Type
-        = n:array() { n }
-        / f:flag() { f }
-        / t:tuple() { t }
-        / "uint8" { ast::Type::Uint8 }
-        / "uint16" { ast::Type::Uint16 }
-        / "uint32" { ast::Type::Uint32 }
-        / "int8" { ast::Type::Int8 }
-        / "int16" { ast::Type::Int16 }
-        / "int32" { ast::Type::Int32 }
-        / "float" { ast::Type::Float }
-        / "string" { ast::Type::String }
+    rule r#type() -> Type
+        = e:enum_type() { Type::Enum(e) }
+        / s:struct_type() { Type::Struct(s) }
+        / u:unresolved_type() { Type::Unresolved(u) }
 
     /// Parses a declaration in the form `identifier : type`
-    rule decl() -> ast::Node
-        = _ i:ident() _ ":" _ t:r#type() ___ { (i, t) }
-        / expected!("declaration")
+    rule decl() -> Node
+        = _ i:ident() _ ":" _ t:r#type() ___ {
+            Node::Decl(i, t)
+        }
 
-    rule line() -> Option<ast::Node>
+    rule export() -> Node
+        = "export" _ s:string() {
+            Node::Export(s)
+        }
+
+    rule line() -> Option<Node>
         = _ comment() __ { None }
+        / _ e:(export()) __ { Some(e) }
         / _ s:(decl()) __ { Some(s) }
 
     /// Parses a schema file
-    pub rule schema() -> ast::AST
+    pub rule schema() -> AST
         = __? lines:(line()*) {
             lines.into_iter()
                 .filter_map(|x| x)
@@ -116,518 +89,288 @@ mod tests {
 
     use peg::str::LineCol;
 
+    // This exists so that test case strings are leading whitespace insensitive
+    trait TestCaseString {
+        fn build(&self) -> String;
+    }
+    impl TestCaseString for str {
+        fn build(&self) -> String {
+            self.split('\n')
+                .map(|s| s.trim_start())
+                .collect::<Vec<&str>>()
+                .join("\n")
+        }
+    }
+
     #[test]
     fn parse_whitespace_before_array_bracket() {
-        let test_str = r#"
-arr: uint8 []
-"#;
+        let test = r#"
+        arr: uint8 []
+        "#
+        .build();
         let expected = LineCol {
             line: 2,
             column: 12,
             offset: 12,
         };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
+        let actual = pkt::schema(&test).unwrap_err().location;
+        assert_eq!(actual, expected);
     }
 
     #[test]
-    fn parse_undefined_type() {
-        let test_str = r#"
-aaa: uint
-"#;
-        let expected = LineCol {
-            line: 2,
-            column: 6,
-            offset: 6,
-        };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
-    }
-
-    #[test]
-    fn parse_unclosed_tuple_parentheses() {
-        let test_str = r#"
-aaa: (x: float, y: float
-"#;
+    fn parse_unclosed_struct_brackets() {
+        let test = r#"
+        aaa: struct { x:float, y:float
+        "#
+        .build();
         let expected = LineCol {
             line: 3,
             column: 1,
-            offset: 26,
+            offset: 32,
         };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
+        let actual = pkt::schema(&test).unwrap_err().location;
+        assert_eq!(actual, expected);
     }
 
     #[test]
-    fn parse_unclosed_flag_brackets() {
-        let test_str = r#"
-aaa: { A, B 
-"#;
+    fn parse_unclosed_enum_brackets() {
+        let test = r#"
+        aaa: enum { A, B
+        "#
+        .build();
         let expected = LineCol {
             line: 3,
             column: 1,
-            offset: 14,
+            offset: 18,
         };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
+        let actual = pkt::schema(&test).unwrap_err().location;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn parse_unclosed_array_brackets() {
-        let test_str = r#"
-aaa: uint8[
-"#;
+        let test = r#"
+        aaa: uint8[
+        "#
+        .build();
         let expected = LineCol {
             line: 2,
             column: 11,
             offset: 11,
         };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
+        let actual = pkt::schema(&test).unwrap_err().location;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn parse_reserved_identifier() {
-        let test_str = r#"
-uint8: uint8
-"#;
+        let test = r#"
+        uint8: uint8
+        "#
+        .build();
         let expected = LineCol {
             line: 2,
             column: 1,
             offset: 1,
         };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
+        let actual = pkt::schema(&test).unwrap_err().location;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn parse_first_char_numeric_bad_identifier() {
-        let test_str = r#"
-0aaa: uint8
-"#;
+        let test = r#"
+        0aaa: uint8
+        "#
+        .build();
         let expected = LineCol {
             line: 2,
             column: 1,
             offset: 1,
         };
-        assert_eq!(pkt::schema(test_str).unwrap_err().location, expected);
+        let actual = pkt::schema(&test).unwrap_err().location;
+        assert_eq!(actual, expected);
     }
 
     #[test]
     fn parse_comment() {
-        let test_str = r#"
-# this is a comment.
-"#;
-        let expected: ast::AST = vec![];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        let test = r#"
+        # this is a comment.
+        "#
+        .build();
+        let expected: AST = vec![];
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
     fn parse_comment_right_of_line() {
-        let test_str = r#"
-aaa: uint8 # this is a comment placed to the right of a line.
-"#;
-        let expected: ast::AST = vec![("aaa".to_string(), ast::Type::Uint8)];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_numeric() {
-        let test_str = r#"
-u8: uint8
-u16: uint16
-u32: uint32
-i8: int8
-i16: int16
-i32: int32
-f32: float
-"#;
-        let expected: ast::AST = vec![
-            ("u8".to_string(), ast::Type::Uint8),
-            ("u16".to_string(), ast::Type::Uint16),
-            ("u32".to_string(), ast::Type::Uint32),
-            ("i8".to_string(), ast::Type::Int8),
-            ("i16".to_string(), ast::Type::Int16),
-            ("i32".to_string(), ast::Type::Int32),
-            ("f32".to_string(), ast::Type::Float),
-        ];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_array() {
-        let test_str = r#"
-u8: uint8[]
-u16: uint16[]
-u32: uint32[]
-i8: int8[]
-i16: int16[]
-i32: int32[]
-f32: float[]
-"#;
-        let expected: ast::AST = vec![
-            (
-                "u8".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Uint8),
-                },
-            ),
-            (
-                "u16".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Uint16),
-                },
-            ),
-            (
-                "u32".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Uint32),
-                },
-            ),
-            (
-                "i8".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Int8),
-                },
-            ),
-            (
-                "i16".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Int16),
-                },
-            ),
-            (
-                "i32".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Int32),
-                },
-            ),
-            (
-                "f32".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Float),
-                },
-            ),
-        ];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_array_nested() {
-        let test_str = r#"
-u8: uint8[][]
-u16: uint16[][]
-u32: uint32[][]
-i8: int8[][]
-i16: int16[][]
-i32: int32[][]
-f32: float[][]
-"#;
-        let expected: ast::AST = vec![
-            (
-                "u8".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Uint8),
-                    }),
-                },
-            ),
-            (
-                "u16".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Uint16),
-                    }),
-                },
-            ),
-            (
-                "u32".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Uint32),
-                    }),
-                },
-            ),
-            (
-                "i8".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Int8),
-                    }),
-                },
-            ),
-            (
-                "i16".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Int16),
-                    }),
-                },
-            ),
-            (
-                "i32".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Int32),
-                    }),
-                },
-            ),
-            (
-                "f32".to_string(),
-                ast::Type::Array {
-                    r#type: Box::new(ast::Type::Array {
-                        r#type: Box::new(ast::Type::Float),
-                    }),
-                },
-            ),
-        ];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_flag() {
-        let test_str = r#"
-flag: { A, B }
-"#;
-        let expected: ast::AST = vec![(
-            "flag".to_string(),
-            ast::Type::Flag {
-                variants: vec!["A".to_string(), "B".to_string()],
-            },
+        let test = r#"
+        a: A # this is a comment placed to the right of a line.
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "a".to_string(),
+            Type::Unresolved(Unresolved("A".to_string(), false)),
         )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
-    fn parse_flag_array() {
-        let test_str = r#"
-flag: { A, B }[]
-"#;
-        let expected: ast::AST = vec![(
-            "flag".to_string(),
-            ast::Type::Array {
-                r#type: Box::new(ast::Type::Flag {
-                    variants: vec!["A".to_string(), "B".to_string()],
-                }),
-            },
+    fn parse_unresolved() {
+        let test = r#"
+        asdf: A
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf".to_string(),
+            Type::Unresolved(Unresolved("A".to_string(), false)),
         )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
-    fn parse_tuple() {
-        let test_str = r#"
-tuple: (
-    u8: uint8,
-    u16: uint16,
-    u32: uint32,
-    i8: int8,
-    i16: int16,
-    i32: int32,
-    f32: float
-)
-"#;
-        let expected: ast::AST = vec![(
-            "tuple".to_string(),
-            ast::Type::Tuple {
-                elements: vec![
-                    ("u8".to_string(), ast::Type::Uint8),
-                    ("u16".to_string(), ast::Type::Uint16),
-                    ("u32".to_string(), ast::Type::Uint32),
-                    ("i8".to_string(), ast::Type::Int8),
-                    ("i16".to_string(), ast::Type::Int16),
-                    ("i32".to_string(), ast::Type::Int32),
-                    ("f32".to_string(), ast::Type::Float),
-                ],
-            },
+    fn parse_unresolved_array() {
+        let test = r#"
+        asdf: A[]
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf".to_string(),
+            Type::Unresolved(Unresolved("A".to_string(), true)),
         )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
-    fn parse_tuple_trailing_comma() {
-        let test_str = r#"
-tuple: (
-    u8: uint8,
-    f32: float,
-)
-"#;
-        let expected: ast::AST = vec![(
-            "tuple".to_string(),
-            ast::Type::Tuple {
-                elements: vec![
-                    ("u8".to_string(), ast::Type::Uint8),
-                    ("f32".to_string(), ast::Type::Float),
-                ],
-            },
+    fn parse_enum() {
+        let test = r#"
+        asdf: enum { A, B }
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf".to_string(),
+            Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
         )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
-    fn parse_tuple_array() {
-        let test_str = r#"
-tuple: (
-    u8: uint8,
-    f32: float,
-)[]
-"#;
-        let expected: ast::AST = vec![(
-            "tuple".to_string(),
-            ast::Type::Array {
-                r#type: Box::new(ast::Type::Tuple {
-                    elements: vec![
-                        ("u8".to_string(), ast::Type::Uint8),
-                        ("f32".to_string(), ast::Type::Float),
-                    ],
-                }),
-            },
+    fn parse_struct() {
+        let test = r#"
+        asdf: struct {
+            x: float,
+            y: float
+        }"#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf".to_string(),
+            Type::Struct(Struct(vec![
+                ("x".to_string(), Unresolved("float".to_string(), false)),
+                ("y".to_string(), Unresolved("float".to_string(), false)),
+            ])),
         )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
-    fn parse_tuple_of_array() {
-        let test_str = r#"
-tuple: (
-    u8: uint8[],
-    f32: float[],
-)
-"#;
-        let expected: ast::AST = vec![(
-            "tuple".to_string(),
-            ast::Type::Tuple {
-                elements: vec![
-                    (
-                        "u8".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::Uint8),
-                        },
-                    ),
-                    (
-                        "f32".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::Float),
-                        },
-                    ),
-                ],
-            },
+    fn parse_struct_trailing_comma() {
+        let test = r#"
+        asdf: struct {
+            a: A,
+            b: B,
+        }
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf".to_string(),
+            Type::Struct(Struct(vec![
+                ("a".to_string(), Unresolved("A".to_string(), false)),
+                ("b".to_string(), Unresolved("B".to_string(), false)),
+            ])),
         )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn parse_struct_with_arrays() {
+        let test = r#"
+        asdf: struct {
+            a: A[],
+            b: B[],
+        }
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf".to_string(),
+            Type::Struct(Struct(vec![
+                ("a".to_string(), Unresolved("A".to_string(), true)),
+                ("b".to_string(), Unresolved("B".to_string(), true)),
+            ])),
+        )];
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn parse_export() {
+        let test = r#"
+        export Test
+        "#
+        .build();
+        let expected: AST = vec![Node::Export("Test".to_string())];
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
     #[test]
     fn parse_complex() {
-        let test_str = r#"
-complex_type: (
-    flag: { A, B },
-    positions: (x: float, y: float)[],
-    names: string[],
-    values: (
-        a: uint32,
-        b: int32,
-        c: uint8,
-        d: uint8
-    )[]
-)
-"#;
-        let expected: ast::AST = vec![(
-            "complex_type".to_string(),
-            ast::Type::Tuple {
-                elements: vec![
-                    (
-                        "flag".to_string(),
-                        ast::Type::Flag {
-                            variants: vec!["A".to_string(), "B".to_string()],
-                        },
-                    ),
-                    (
-                        "positions".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::Tuple {
-                                elements: vec![
-                                    ("x".to_string(), ast::Type::Float),
-                                    ("y".to_string(), ast::Type::Float),
-                                ],
-                            }),
-                        },
-                    ),
-                    (
-                        "names".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::String),
-                        },
-                    ),
-                    (
-                        "values".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::Tuple {
-                                elements: vec![
-                                    ("a".to_string(), ast::Type::Uint32),
-                                    ("b".to_string(), ast::Type::Int32),
-                                    ("c".to_string(), ast::Type::Uint8),
-                                    ("d".to_string(), ast::Type::Uint8),
-                                ],
-                            }),
-                        },
-                    ),
-                ],
-            },
-        )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
-    }
-
-    #[test]
-    fn parse_complex_weird_whitespace() {
-        let test_str = r#"
-complex_type: ( 
-    flag : {   A,  B },
-     positions: ( x : float, y: float )[],
-    names:  string[],
-    values : (
-  a : uint32,
-        b: int32,
-        c:  uint8,  d : uint8
-      )[]
-)
-"#;
-        let expected: ast::AST = vec![(
-            "complex_type".to_string(),
-            ast::Type::Tuple {
-                elements: vec![
-                    (
-                        "flag".to_string(),
-                        ast::Type::Flag {
-                            variants: vec!["A".to_string(), "B".to_string()],
-                        },
-                    ),
-                    (
-                        "positions".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::Tuple {
-                                elements: vec![
-                                    ("x".to_string(), ast::Type::Float),
-                                    ("y".to_string(), ast::Type::Float),
-                                ],
-                            }),
-                        },
-                    ),
-                    (
-                        "names".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::String),
-                        },
-                    ),
-                    (
-                        "values".to_string(),
-                        ast::Type::Array {
-                            r#type: Box::new(ast::Type::Tuple {
-                                elements: vec![
-                                    ("a".to_string(), ast::Type::Uint32),
-                                    ("b".to_string(), ast::Type::Int32),
-                                    ("c".to_string(), ast::Type::Uint8),
-                                    ("d".to_string(), ast::Type::Uint8),
-                                ],
-                            }),
-                        },
-                    ),
-                ],
-            },
-        )];
-        assert_eq!(pkt::schema(test_str).unwrap(), expected);
+        let test = r#"
+        # This is a comment.
+        # Below is what a fairly complex packet may look like
+        Flag: enum { A, B }
+        Position: struct { x: float, y: float }
+        Value: struct { 
+            a: uint32, b: int32, c: uint8, d: uint8
+        }
+        ComplexType: struct {
+            flag: Flag,
+            pos: Position,
+            names: string[],
+            values: Value[]
+        }
+        export ComplexType
+        "#
+        .build();
+        let expected: AST = vec![
+            Node::Decl(
+                "Flag".to_string(),
+                Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
+            ),
+            Node::Decl(
+                "Position".to_string(),
+                Type::Struct(Struct(vec![
+                    ("x".to_string(), Unresolved("float".to_string(), false)),
+                    ("y".to_string(), Unresolved("float".to_string(), false)),
+                ])),
+            ),
+            Node::Decl(
+                "Value".to_string(),
+                Type::Struct(Struct(vec![
+                    ("a".to_string(), Unresolved("uint32".to_string(), false)),
+                    ("b".to_string(), Unresolved("int32".to_string(), false)),
+                    ("c".to_string(), Unresolved("uint8".to_string(), false)),
+                    ("d".to_string(), Unresolved("uint8".to_string(), false)),
+                ])),
+            ),
+            Node::Decl(
+                "ComplexType".to_string(),
+                Type::Struct(Struct(vec![
+                    ("flag".to_string(), Unresolved("Flag".to_string(), false)),
+                    ("pos".to_string(), Unresolved("Position".to_string(), false)),
+                    ("names".to_string(), Unresolved("string".to_string(), true)),
+                    ("values".to_string(), Unresolved("Value".to_string(), true)),
+                ])),
+            ),
+            Node::Export("ComplexType".to_string()),
+        ];
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 }

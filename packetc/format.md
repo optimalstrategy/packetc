@@ -21,74 +21,46 @@ Because the target is Rust and JavaScript, the lowest common denominator determi
 
 Here's some syntax:
 
-Symbols are declared as `identifier: type;`, where `type` is any of:
-- uint8, uint16, uint32
-    - rs: u8, u16, u32
-    - js: number
-- int8, int16, int32
-    - rs: i8, i16, i32
-    - js: number
-- float
-    - rs: f32
-    - js: number
-- string
-    - rs: String
-    - js: string
-- flag, in the form `identifier: { VARIANT_A, VARIANT_B }`
-    - rs: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
-    - js: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
+Symbols are declared as `identifier: type`, where `type` is any of:
+```
 - array, in the form `identifier: type[]`, with nesting: `identifier: type[][]`
     - rs: Vec<type>
-    - js: Array<type>
-- tuple, in the form `identifier: (name0:type0, name1:type1, ..., nameN:typeN)`
+    - ts: Array<type>
+- struct, in the form `identifier: struct { name0:type0, name1:type1, ..., nameN:typeN }`
     - rs: struct { name0: type0, name1: type1, ..., nameN: typeN }
-    - js: { "name0": type0, "name1": type1, ..., "nameN": typeN }
+    - ts: { "name0": type0, "name1": type1, ..., "nameN": typeN }
+- enum, in the form `identifier: enum { VARIANT_A, VARIANT_B }`
+    - rs: #[repr(u8/u16/u32)] enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
+    - ts: enum { VARIANT_A = 1 << 0, VARIANT_B = 1 << 1 }
+- string
+    - rs: String
+    - ts: string
+- uint8, uint16, uint32, int8, int16, int32
+    - rs: u8, u16, u32, i8, i16, i32
+    - ts: number
+- float
+    - rs: f32
+    - ts: number
+```
 
 Comments start with #, and are only single-line.
 
 ```
 # This is a comment.
 # Below is what a fairly complex packet may look like
-u8: uint8
-u16: uint16
-u32: uint32
-i8: int8
-i16: int16
-i32: int32
-f32: float
-u8_array: uint8[]
-array_of_u8_arrays: uint8[][]
-str: string
-str_array: string[]
-tuple: (
-    x: float, 
-    y: float, 
-    name: string
-)
-tuple_array: (
-    x: float, 
-    y: float, 
-    name: string
-)[]
-flag: {
-    VARIANT_A, 
-    VARIANT_B
+Flag: enum { A, B }
+Position: struct { x: float, y: float }
+Value: struct { 
+  a: uint32, b: int32, c: uint8, d: uint8
 }
-flag_array: {
-    VARIANT_A, 
-    VARIANT_B
-}[]
-complex_type: (
-    flag: { A, B },
-    positions: (x: float, y: float)[],
+ComplexType: struct {
+    flag: Flag,
+    positions: Position[],
     names: string[],
-    values: (
-        a: u32,
-        b: i32,
-        c: u8,
-        d: u8
-    )[]
-)
+    values: Value[]
+}
+
+export ComplexType
 ```
 
 **Implementation:**
