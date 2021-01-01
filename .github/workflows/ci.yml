@@ -51,9 +51,6 @@ jobs:
           command: clippy
           args: -- -D --warnings -A unused_variables --verbose
       - name: Tests
-        env:
-          RUSTFLAGS: -Zsymbol-mangling-version=v0 -Zmacro-backtrace
-          RUST_BACKTRACE: 1
         uses: actions-rs/cargo@v1
         with:
           command: test --all --verbose
