@@ -46,7 +46,7 @@ describe("Reader scalar", function () {
             const writer = new Writer(expected.byteLength);
             writer[`write_${type}` as WriterMethodKey](value);
             const actual = writer.finish();
-            expect(actual).toEqual(expected);
+            expect(new Uint8Array(actual)).toEqual(expected);
         });
     }
 
@@ -56,6 +56,6 @@ describe("Reader scalar", function () {
         const writer = new Writer(value.length);
         writer.write_slice(new TextEncoder().encode(value));
         const actual = writer.finish();
-        expect(actual).toEqual(expected);
+        expect(new Uint8Array(actual)).toEqual(expected);
     });
 });
