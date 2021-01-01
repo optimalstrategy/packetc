@@ -45,10 +45,6 @@ jobs:
         uses: actions-rs/cargo@v1
         with: 
           command: check
-      - name: Cargo fmt
-        uses: actions-rs/cargo@v1
-        with: 
-          command: fmt --all -- --check
       - name: Clippy lint
         uses: actions-rs/cargo@v1
         with: 
