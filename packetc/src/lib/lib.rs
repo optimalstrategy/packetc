@@ -6,6 +6,8 @@ use peg::error::ParseError;
 use peg::str::LineCol;
 use std::fs;
 
+#[macro_use]
+mod macros;
 pub mod ast;
 pub mod check;
 pub mod gen;

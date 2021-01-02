@@ -4,12 +4,6 @@ use super::*;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
-macro_rules! append {
-    ($dst:expr, $($arg:tt)*) => (write!($dst, $($arg)*).unwrap());
-
-    ($dst:expr, $arg:expr) => (write!($dst, "{}", $arg).unwrap());
-}
-
 pub trait Kind {}
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
 pub struct TypeScript;
@@ -83,97 +77,34 @@ fn rust_gen_write_impl_builtin(
     indentation: &mut usize,
     out: &mut String,
 ) {
-    *id += 1;
-    // TODO: check sizes
-    // TODO: DRY
-    fname_stack.push(name.to_string());
-    if array {
-        append!(
-            out,
-            "{}for n_{} in self.{}{}iter() {{\n",
-            indent(*indentation),
-            *id,
-            fname_stack.join("."),
-            if fname_stack.len() > 1 { "." } else { "" }
-        );
-        *indentation += 1;
-    }
-    let varname = if array {
-        format!("n_{}", *id)
-    } else {
-        format!("self.{}", fname_stack.join("."))
-    };
+    let varname = gen_rust_prelude!(out, array, name, id, fname_stack, indentation, varname);
     match ty {
         check::Builtin::Uint8 => {
-            append!(
-                out,
-                "{}writer.write_uint8({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, uint8, indentation, varname)
         }
         check::Builtin::Uint16 => {
-            append!(
-                out,
-                "{}writer.write_uint16({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, uint16, indentation, varname)
         }
         check::Builtin::Uint32 => {
-            append!(
-                out,
-                "{}writer.write_uint32({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, uint32, indentation, varname)
         }
         check::Builtin::Int8 => {
-            append!(
-                out,
-                "{}writer.write_int8({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, int8, indentation, varname)
         }
         check::Builtin::Int16 => {
-            append!(
-                out,
-                "{}writer.write_int16({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, int16, indentation, varname)
         }
         check::Builtin::Int32 => {
-            append!(
-                out,
-                "{}writer.write_int32({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, int32, indentation, varname)
         }
         check::Builtin::Float => {
-            append!(
-                out,
-                "{}writer.write_float({});\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, float, indentation, varname)
         }
         check::Builtin::String => {
-            append!(
-                out,
-                "{}writer.write_slice(&{}.as_bytes());\n",
-                indent(*indentation),
-                varname
-            )
+            gen_builtin!(out, string, indentation, varname)
         }
     };
-    if array {
-        *indentation -= 1;
-        append!(out, "{}}}\n", indent(*indentation));
-    }
-    fname_stack.pop();
+    gen_rust_epilogue!(out, array, fname_stack, indentation);
 }
 
 fn rust_gen_write_impl_enum(
@@ -185,51 +116,13 @@ fn rust_gen_write_impl_enum(
     indentation: &mut usize,
     out: &mut String,
 ) {
-    *id += 1;
-    // TODO: check sizes
-    // TODO: DRY
-    fname_stack.push(name.to_string());
-    if array {
-        append!(
-            out,
-            "{}for n_{} in self.{}{}iter() {{\n",
-            indent(*indentation),
-            *id,
-            fname_stack.join("."),
-            if fname_stack.len() > 1 { "." } else { "" }
-        );
-        *indentation += 1;
-    }
-    let varname = if array {
-        format!("n_{}", *id)
-    } else {
-        format!("self.{}", fname_stack.join("."))
-    };
+    let varname = gen_rust_prelude!(out, array, name, id, fname_stack, indentation, varname);
     match ty.repr {
-        check::EnumRepr::U8 => append!(
-            out,
-            "{}writer.write_uint8({} as u8)",
-            indent(*indentation),
-            varname,
-        ),
-        check::EnumRepr::U16 => append!(
-            out,
-            "{}writer.write_uint16({} as u16)",
-            indent(*indentation),
-            varname,
-        ),
-        check::EnumRepr::U32 => append!(
-            out,
-            "{}writer.write_uint32({} as u32)",
-            indent(*indentation),
-            varname,
-        ),
+        check::EnumRepr::U8 => gen_enum!(out, uint8, u8, indentation, varname),
+        check::EnumRepr::U16 => gen_enum!(out, uint16, u16, indentation, varname),
+        check::EnumRepr::U32 => gen_enum!(out, uint32, u32, indentation, varname),
     };
-    if array {
-        *indentation -= 1;
-        append!(out, "{}}}\n", indent(*indentation));
-    }
-    fname_stack.pop();
+    gen_rust_epilogue!(out, array, fname_stack, indentation);
 }
 
 fn rust_gen_write_impl_struct(
@@ -242,23 +135,8 @@ fn rust_gen_write_impl_struct(
     indentation: &mut usize,
     out: &mut String,
 ) {
-    *id += 1;
-    // TODO: check sizes
-    // TODO: dry
-    if push_name {
-        fname_stack.push(name.to_string());
-    }
-    if array {
-        append!(
-            out,
-            "{}for n_{} in self.{}.iter() {{\n",
-            indent(*indentation),
-            *id,
-            fname_stack.join(".")
-        );
-        *indentation += 1;
-    }
-    let mut array_fname_stack = vec![format!("n_{}", *id)];
+    let varname = gen_rust_prelude!(out, array, name, id, fname_stack, indentation, varname);
+    let mut array_fname_stack = vec![varname];
     for field in ty.fields.iter() {
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
@@ -305,8 +183,7 @@ fn rust_gen_write_impl_struct(
         }
     }
     if array {
-        *indentation -= 1;
-        append!(out, "{}}}\n", indent(*indentation));
+        gen_array_end!(out, indentation);
     }
     if push_name {
         fname_stack.pop();
@@ -391,14 +268,11 @@ impl Definition<Rust> for check::Enum {
 
 impl Definition<TypeScript> for check::Builtin {
     fn gen_def(&self, name: String, out: &mut String) {
+        use check::Builtin::*;
         match self {
-            check::Builtin::Uint8 => append!(out, "export type {} = number;\n", name),
-            check::Builtin::Uint16 => append!(out, "export type {} = number;\n", name),
-            check::Builtin::Uint32 => append!(out, "export type {} = number;\n", name),
-            check::Builtin::Int8 => append!(out, "export type {} = number;\n", name),
-            check::Builtin::Int16 => append!(out, "export type {} = number;\n", name),
-            check::Builtin::Int32 => append!(out, "export type {} = number;\n", name),
-            check::Builtin::Float => append!(out, "export type {} = number;\n", name),
+            Uint8 | Uint16 | Uint32 | Int8 | Int16 | Int32 | Float => {
+                append!(out, "export type {} = number;\n", name)
+            }
             _ => (),
         }
     }
