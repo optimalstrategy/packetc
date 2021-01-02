@@ -2,12 +2,15 @@
 //!
 //! Type-checking is done in two passes, so that it's possible to have lexical scoping.
 use super::*;
-use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
 
 // TODO: real error type + report in a nice way
-// TODO: DRY this code
+// TODO!: enforce unique field names
+// TODO!: enforce unique enum names
+// TODO!: discard empty structs + output warning
+// TODO!: discard unused types (can use Rc::strong_count() > 1) + output warning
 
 fn get_export(ast: &[ast::Node]) -> Result<String, String> {
     let mut export = None;
@@ -62,6 +65,15 @@ pub enum EnumRepr {
     U16,
     U32,
 }
+impl Display for EnumRepr {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            EnumRepr::U8 => write!(f, "u8"),
+            EnumRepr::U16 => write!(f, "u16"),
+            EnumRepr::U32 => write!(f, "u32"),
+        }
+    }
+}
 #[derive(Clone, PartialEq, Debug)]
 pub struct Enum {
     pub repr: EnumRepr,
@@ -71,7 +83,7 @@ pub struct Enum {
 #[derive(Clone, PartialEq, Debug)]
 pub struct StructField {
     pub name: String,
-    pub r#type: Ptr<ResolvedType>,
+    pub r#type: Ptr<(String, ResolvedType)>,
     pub array: bool,
 }
 #[derive(Clone, PartialEq, Debug)]
@@ -82,19 +94,14 @@ pub struct Struct {
 #[derive(Clone, PartialEq, Debug)]
 pub enum ResolvedType {
     Builtin(Builtin),
-    Enum {
-        repr: EnumRepr,
-        variants: Vec<EnumVariant>,
-    },
-    Struct {
-        fields: Vec<StructField>,
-    },
+    Enum(Enum),
+    Struct(Struct),
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Ptr<T>(Rc<RefCell<T>>);
+pub struct Ptr<T>(pub Rc<RefCell<T>>);
 impl<T> Ptr<T> {
-    fn new(value: T) -> Ptr<T> {
+    pub fn new(value: T) -> Ptr<T> {
         Ptr(Rc::new(RefCell::new(value)))
     }
 }
@@ -107,42 +114,42 @@ impl<T> std::ops::Deref for Ptr<T> {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Export {
-    r#type: Ptr<ResolvedType>,
+    pub r#struct: Struct,
 }
 
-fn get_builtins() -> HashMap<String, Ptr<ResolvedType>> {
+fn get_builtins() -> HashMap<String, Ptr<(String, ResolvedType)>> {
     vec![
         (
             "uint8".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Uint8)),
+            Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
         ),
         (
             "uint16".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Uint16)),
+            Ptr::new(("uint16".to_string(), ResolvedType::Builtin(Builtin::Uint16))),
         ),
         (
             "uint32".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Uint32)),
+            Ptr::new(("uint32".to_string(), ResolvedType::Builtin(Builtin::Uint32))),
         ),
         (
             "int8".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Int8)),
+            Ptr::new(("int8".to_string(), ResolvedType::Builtin(Builtin::Int8))),
         ),
         (
             "int16".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Int16)),
+            Ptr::new(("int16".to_string(), ResolvedType::Builtin(Builtin::Int16))),
         ),
         (
             "int32".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Int32)),
+            Ptr::new(("int32".to_string(), ResolvedType::Builtin(Builtin::Int32))),
         ),
         (
             "float".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::Float)),
+            Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
         ),
         (
             "string".to_string(),
-            Ptr::new(ResolvedType::Builtin(Builtin::String)),
+            Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
         ),
     ]
     .into_iter()
@@ -152,7 +159,7 @@ fn get_builtins() -> HashMap<String, Ptr<ResolvedType>> {
 fn resolve_struct_field(
     fname: String,
     fty: ast::Unresolved,
-    resolved: &HashMap<String, Ptr<ResolvedType>>,
+    resolved: &HashMap<String, Ptr<(String, ResolvedType)>>,
 ) -> Option<StructField> {
     match resolved.get(&fty.0) {
         Some(rty) => Some(StructField {
@@ -190,8 +197,8 @@ fn resolve_enum(name: &str, ty: ast::Enum) -> Result<(EnumRepr, Vec<EnumVariant>
 fn resolve_one_first_pass(
     name: String,
     ty: ast::Type,
-    builtins: &HashMap<String, Ptr<ResolvedType>>,
-    first_pass: &mut HashMap<String, Ptr<ResolvedType>>,
+    builtins: &HashMap<String, Ptr<(String, ResolvedType)>>,
+    first_pass: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
     unresolved: &mut HashMap<String, ast::Type>,
 ) -> Result<(), String> {
     match ty {
@@ -200,11 +207,14 @@ fn resolve_one_first_pass(
                 Ok(rty) => {
                     unresolved.remove(&name);
                     first_pass.insert(
-                        name,
-                        Ptr::new(ResolvedType::Enum {
-                            repr: rty.0,
-                            variants: rty.1,
-                        }),
+                        name.clone(),
+                        Ptr::new((
+                            name,
+                            ResolvedType::Enum(Enum {
+                                repr: rty.0,
+                                variants: rty.1,
+                            }),
+                        )),
                     );
                 }
                 Err(err) => return Err(err),
@@ -223,7 +233,10 @@ fn resolve_one_first_pass(
             }
             if fields.len() == s.0.len() {
                 unresolved.remove(&name);
-                first_pass.insert(name, Ptr::new(ResolvedType::Struct { fields }));
+                first_pass.insert(
+                    name.clone(),
+                    Ptr::new((name, ResolvedType::Struct(Struct { fields }))),
+                );
             }
         }
     }
@@ -233,8 +246,8 @@ fn resolve_one_first_pass(
 // This should consume the AST and return a type-checked version
 fn resolve_first_pass(
     ast: ast::AST,
-    builtins: &HashMap<String, Ptr<ResolvedType>>,
-    first_pass: &mut HashMap<String, Ptr<ResolvedType>>,
+    builtins: &HashMap<String, Ptr<(String, ResolvedType)>>,
+    first_pass: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
     unresolved: &mut HashMap<String, ast::Type>,
 ) -> Result<(), String> {
     for node in ast {
@@ -250,7 +263,7 @@ fn resolve_first_pass(
 fn resolve_one_second_pass(
     name: String,
     ty: ast::Type,
-    cache: &mut HashMap<String, Ptr<ResolvedType>>,
+    cache: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
     visited: &mut HashSet<String>,
     unresolved: &mut HashMap<String, ast::Type>,
 ) -> Result<(), String> {
@@ -282,7 +295,10 @@ fn resolve_one_second_pass(
         }
         if not_resolved.is_empty() {
             // if all the fields are resolved, construct the type and cache it
-            cache.insert(name, Ptr::new(ResolvedType::Struct { fields }));
+            cache.insert(
+                name.clone(),
+                Ptr::new((name, ResolvedType::Struct(Struct { fields }))),
+            );
         } else {
             // otherwise, for each field that couldn't be resolved, try to resolve it
             for (_, field_type) in not_resolved.iter() {
@@ -315,10 +331,13 @@ fn resolve_one_second_pass(
                 .collect::<Vec<StructField>>();
             // and we have a complete type
             cache.insert(
-                name,
-                Ptr::new(ResolvedType::Struct {
-                    fields: fields.into_iter().chain(now_resolved).collect(),
-                }),
+                name.clone(),
+                Ptr::new((
+                    name,
+                    ResolvedType::Struct(Struct {
+                        fields: fields.into_iter().chain(now_resolved).collect(),
+                    }),
+                )),
             );
         }
     } else {
@@ -331,7 +350,7 @@ fn resolve_one_second_pass(
 }
 
 fn resolve_second_pass(
-    cache: &mut HashMap<String, Ptr<ResolvedType>>,
+    cache: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
     mut unresolved: HashMap<String, ast::Type>,
 ) -> Result<(), String> {
     let mut visited = HashSet::new();
@@ -343,16 +362,23 @@ fn resolve_second_pass(
     Ok(())
 }
 
+fn get_struct_variant(ty: &ResolvedType) -> Struct {
+    match ty {
+        ResolvedType::Struct(s) => s.clone(),
+        _ => panic!("ResolvedType was not struct"),
+    }
+}
+
 fn resolve_export(
     name: String,
-    resolved: &HashMap<String, Ptr<ResolvedType>>,
+    resolved: &HashMap<String, Ptr<(String, ResolvedType)>>,
 ) -> Result<Export, String> {
     if let Some(export) = resolved.get(&name) {
-        if std::mem::discriminant(&*export.borrow())
-            == std::mem::discriminant(&ResolvedType::Struct { fields: Vec::new() })
+        if std::mem::discriminant(&(*export.borrow()).1)
+            == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
         {
             Ok(Export {
-                r#type: export.clone(),
+                r#struct: get_struct_variant(&(*export.borrow()).1),
             })
         } else {
             Err(format!(
@@ -368,7 +394,7 @@ fn resolve_export(
 #[derive(Clone, PartialEq, Debug)]
 pub struct Resolved {
     pub export: Export,
-    pub types: HashMap<String, Ptr<ResolvedType>>,
+    pub types: HashMap<String, Ptr<(String, ResolvedType)>>,
 }
 
 pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {

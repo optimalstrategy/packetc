@@ -1,5 +1,6 @@
 extern crate packet;
 extern crate peg;
+extern crate chrono;
 
 use peg::error::ParseError;
 use peg::str::LineCol;
@@ -7,6 +8,7 @@ use std::fs;
 
 pub mod ast;
 pub mod check;
+pub mod gen;
 pub mod parser;
 
 fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
