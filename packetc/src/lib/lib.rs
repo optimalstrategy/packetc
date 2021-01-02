@@ -1,6 +1,6 @@
+extern crate chrono;
 extern crate packet;
 extern crate peg;
-extern crate chrono;
 
 use peg::error::ParseError;
 use peg::str::LineCol;
