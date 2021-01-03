@@ -1,5 +1,5 @@
 [package]
-name = "packet_rs"
+name = "integration"
 version = "0.1.0"
 authors = ["jprochazk <honza.spacir@gmail.com>"]
 edition = "2018"
@@ -7,5 +7,4 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-byteorder = { version = "1.3.4" }
-thiserror = { version = "1.0" }
+packet = { package = "packet_rs", path = "../packet_rs" }

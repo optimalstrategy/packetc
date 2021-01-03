@@ -2,5 +2,6 @@
 
 members = [
     "packetc",
-    "packet_rs"
+    "packet_rs",
+    "integration",
 ]

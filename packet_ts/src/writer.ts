@@ -1,10 +1,47 @@
 
 const GROWTH_FACTOR = 2;
 
+/* // returns the byte length of a UTF-8 string, following RFC3629 (at most 4 byte characters)
+// source: https://stackoverflow.com/a/23329386/11953579
+function byteLength(str: string) {
+    let s = str.length;
+    for (let i = str.length - 1; i >= 0; i--) {
+        const code = str.charCodeAt(i);
+        if (code > 0x7f && code <= 0x7ff) s++;
+        else if (code > 0x7ff && code <= 0xffff) s += 2;
+        if (code >= 0xDC00 && code <= 0xDFFF) i--; //trail surrogate
+    }
+    return s;
+} */
+
+class StringEncoder {
+    private encoder = new TextEncoder();
+    private byteLength = 0;
+    private buffer = new Uint8Array(1024);
+    /**
+     * Encodes `value` into a temporary buffer, and returns the number of bytes encoded.
+     * @param value 
+     */
+    encode(value: string): number {
+        this.byteLength = this.encoder.encodeInto(value, this.buffer).written!;
+        return this.byteLength;
+    }
+
+    /**
+     * Copy the bytes of the previously encoded string into `dst`, staring at `dstOffset`.
+     * @param dst 
+     * @param dstOffset 
+     */
+    getInto(dst: Uint8Array, dstOffset: number) {
+        dst.set(this.buffer.slice(0, this.byteLength), dstOffset);
+    }
+}
+
 export class Writer {
     private pointer: number;
     private arrayView: Uint8Array;
     private view: DataView;
+    private encoder: StringEncoder;
 
     /**
      * Default constructor
@@ -25,6 +62,7 @@ export class Writer {
         const buffer = arg0 instanceof ArrayBuffer ? arg0 : new ArrayBuffer(arg0 ?? 0);
         this.arrayView = new Uint8Array(buffer);
         this.view = new DataView(buffer);
+        this.encoder = new StringEncoder;
     }
 
     // If needed, resize to fit at least another `additional` bytes
@@ -82,10 +120,10 @@ export class Writer {
         this.view.setFloat32(this.advance(4), value, true);
     }
 
-    write_slice(value: Uint8Array) {
-        this.ensure(value.byteLength);
-        const pos = this.advance(value.byteLength);
-        this.arrayView.set(value, pos);
+    write_string(value: string) {
+        const len = this.encoder.encode(value);
+        this.ensure(len);
+        this.encoder.getInto(this.arrayView, this.advance(len));
     }
 
     finish(): ArrayBuffer {

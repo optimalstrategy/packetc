@@ -3,11 +3,13 @@ export class Reader {
     private pointer: number;
     private arrayView: Uint8Array;
     private view: DataView;
+    private decoder: TextDecoder;
 
     constructor(data: ArrayBuffer) {
         this.pointer = 0;
         this.arrayView = new Uint8Array(data);
         this.view = new DataView(data);
+        this.decoder = new TextDecoder;
     }
 
     remaining(): number {
@@ -60,8 +62,8 @@ export class Reader {
     }
 
     // Reads a slice of `len`, does not do bounds checking
-    read_slice(len: number): Uint8Array {
+    read_string(len: number): string {
         const pos = this.advance(len);
-        return this.arrayView.slice(pos, pos + len);
+        return this.decoder.decode(this.arrayView.slice(pos, pos + len));
     }
 }

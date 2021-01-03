@@ -1,6 +1,9 @@
 use super::ast;
 use ast::*;
 
+// TODO: allow specifying max array size -> use it to shrink array len encoding if possible
+// right now, it's uint32 by default, which is very wasteful
+
 peg::parser!(pub grammar pkt() for str {
     /// Parses whitespace
     rule _() = [' ']*

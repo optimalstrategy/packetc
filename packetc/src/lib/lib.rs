@@ -1,15 +1,24 @@
 extern crate chrono;
 extern crate packet;
 extern crate peg;
+#[macro_use]
+extern crate thiserror;
 
 use peg::error::ParseError;
 use peg::str::LineCol;
-use std::fs;
 
 pub mod ast;
 pub mod check;
 pub mod gen;
 pub mod parser;
+
+#[derive(Error, Debug)]
+pub enum Error {
+    #[error("Parsing failed with:\n{0}")]
+    Parse(String),
+    #[error("One or more type errors:\n{0}")]
+    Check(String),
+}
 
 fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
     let mut out_str = String::new();
@@ -30,32 +39,17 @@ fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
     out_str
 }
 
-pub fn parse(content: &str) -> Result<ast::AST, String> {
-    parser::pkt::schema(content).map_err(|err| pretty_error(content, err))
-}
-
-pub fn parse_file(path: &str) -> Result<ast::AST, String> {
-    let file = fs::read_to_string(path).map_err(|_| format!("Failed to read {}", path))?;
-    parse(&file)
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn parses_file() {
-        parse_file("resource/test.pkt").unwrap();
-    }
-
-    #[test]
-    fn parses_str() {
-        let content = include_str!("../../resource/test.pkt");
-        parse(content).unwrap();
-    }
-
-    #[test]
-    fn type_checks_file() {
-        check::type_check(parse_file("resource/test.pkt").unwrap()).unwrap();
-    }
+pub fn compile<Lang>(schema: &str) -> Result<String, impl std::error::Error>
+where
+    Lang: gen::Language + Default,
+{
+    let ast = match parser::pkt::schema(schema) {
+        Ok(ast) => ast,
+        Err(e) => return Err(Error::Parse(pretty_error(schema, e))),
+    };
+    let resolved = match check::type_check(ast) {
+        Ok(r) => r,
+        Err(e) => return Err(Error::Check(e)),
+    };
+    Ok(gen::generate::<Lang>(resolved))
 }

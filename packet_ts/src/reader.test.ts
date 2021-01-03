@@ -28,7 +28,7 @@ function make_buffer(type: BufferType, value: number) {
     return new Uint8Array(buffer);
 }
 
-type ReaderMethodKey = Exclude<keyof Reader, "read_slice">;
+type ReaderMethodKey = Exclude<keyof Reader, "read_string">;
 
 const cases: [string, Uint8Array, number][] = [
     ["uint8", make_buffer("u8", 100), 100],
@@ -50,10 +50,9 @@ describe("Reader scalar", function () {
     }
 
     it(`read_string`, function () {
-        const value = new TextEncoder().encode("testing");
         const expected = "testing";
-        const reader = new Reader(value.buffer);
-        const actual = new TextDecoder().decode(reader.read_slice("testing".length));
+        const reader = new Reader(new TextEncoder().encode("testing").buffer);
+        const actual = reader.read_string("testing".length);
         expect(actual).toEqual(expected);
     });
 });

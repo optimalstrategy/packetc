@@ -114,6 +114,7 @@ impl<T> std::ops::Deref for Ptr<T> {
 
 #[derive(Clone, PartialEq, Debug)]
 pub struct Export {
+    pub name: String,
     pub r#struct: Struct,
 }
 
@@ -286,8 +287,7 @@ fn resolve_one_second_pass(
         let mut not_resolved = Vec::new();
         let mut fields = Vec::new();
         for (field_name, field_type) in s.0.into_iter() {
-            if let Some(field) = resolve_struct_field(field_name.clone(), field_type.clone(), cache)
-            {
+            if let Some(field) = resolve_struct_field(field_name.clone(), field_type.clone(), cache) {
                 fields.push(field);
             } else {
                 not_resolved.push((field_name, field_type));
@@ -307,19 +307,14 @@ fn resolve_one_second_pass(
                 if let Some(utype) = unresolved.remove(&ftype_name) {
                     // if it exists, try to resolve it by recursively calling
                     // the function we're in
-                    if let Err(e) =
-                        resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved)
-                    {
+                    if let Err(e) = resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved) {
                         // it may fail, so propagate the error out
                         return Err(e);
                     }
                 } else {
                     // if the field's typename is not in unresolved, that means it doesn't exist
                     // (because it isn't resolved nor unresolved)
-                    return Err(format!(
-                        "Declaration for type '{}' does not exist",
-                        ftype_name
-                    ));
+                    return Err(format!("Declaration for type '{}' does not exist", ftype_name));
                 }
             }
             // if we get here, it means all the field's types were successfully resolved and placed in the cache
@@ -365,7 +360,7 @@ fn resolve_second_pass(
 fn get_struct_variant(ty: &ResolvedType) -> Struct {
     match ty {
         ResolvedType::Struct(s) => s.clone(),
-        _ => panic!("ResolvedType was not struct"),
+        _ => panic!("ResolvedType is not struct"),
     }
 }
 
@@ -378,13 +373,11 @@ fn resolve_export(
             == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
         {
             Ok(Export {
+                name,
                 r#struct: get_struct_variant(&(*export.borrow()).1),
             })
         } else {
-            Err(format!(
-                "Attempted to export '{}', which is not a struct",
-                name
-            ))
+            Err(format!("Attempted to export '{}', which is not a struct", name))
         }
     } else {
         Err(format!("Export '{}' could not be resolved", name))
@@ -415,10 +408,7 @@ pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
         return Err(err);
     };
     // second pass: collect structs with other structs (made up of builtins) as field types
-    let mut cache = cache
-        .into_iter()
-        .chain(first_pass)
-        .collect::<HashMap<_, _>>();
+    let mut cache = cache.into_iter().chain(first_pass).collect::<HashMap<_, _>>();
     if let Err(err) = resolve_second_pass(&mut cache, unresolved) {
         return Err(err);
     };
@@ -427,10 +417,7 @@ pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
         Ok(e) => e,
         Err(err) => return Err(err),
     };
-    Ok(Resolved {
-        export,
-        types: cache,
-    })
+    Ok(Resolved { export, types: cache })
 }
 
 #[cfg(test)]
@@ -510,10 +497,7 @@ mod tests {
                 ("y".to_string(), Unresolved("float".to_string(), false)),
             ])),
         )];
-        assert_eq!(
-            type_check(test).unwrap_err(),
-            "Schema has no export".to_string()
-        );
+        assert_eq!(type_check(test).unwrap_err(), "Schema has no export".to_string());
     }
 
     #[test]
