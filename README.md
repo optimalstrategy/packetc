@@ -82,7 +82,14 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
     writer.write_uint8(input.b);
 }
 ```
-The file above depends on the `packet_rs` library. The compiler generates similar code for TypeScript.
+The file above depends on the `packet_rs` library.
+
+Currently, only Rust and TypeScript are supported as targets for the packet format. The compiler is written in a flexible way, so adding support for new languages is not a herculean feat, but it requires some plumbing:
+1. Implement the support library (With the same API as `packet_rs` or `packet_ts`)
+   * read/write (unsigned) integer + float types
+   * read/write strings
+   * all in a fallible way, either by throwing exceptions, returning Result, error codes, or similar
+2. Implement the codegen for the language
 
 ### Notes
 
