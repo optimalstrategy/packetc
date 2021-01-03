@@ -14,6 +14,10 @@ function byteLength(str: string) {
     return s;
 } */
 
+/**
+ * A TextEncoder with a temporary, pre-allocated buffer. 
+ * If re-used, can offer ~2x the performance of TextEncoder alone.
+ */
 class StringEncoder {
     private encoder = new TextEncoder();
     private byteLength = 0;

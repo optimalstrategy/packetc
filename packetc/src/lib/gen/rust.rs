@@ -14,14 +14,6 @@ impl Common for Rust {
             "#![allow(non_camel_case_types, unused_imports, clippy::field_reassign_with_default)]\n"
         );
         append!(out, "use std::convert::TryFrom;\n");
-        append!(out, "pub type uint8 = u8;\n");
-        append!(out, "pub type uint16 = u16;\n");
-        append!(out, "pub type uint32 = u32;\n");
-        append!(out, "pub type int8 = i8;\n");
-        append!(out, "pub type int16 = i16;\n");
-        append!(out, "pub type int32 = i32;\n");
-        append!(out, "pub type float = f32;\n");
-        append!(out, "pub type string = String;\n");
     }
 }
 
@@ -534,7 +526,20 @@ impl Definition<Rust> for check::Struct {
         append!(out, "#[derive(Clone, PartialEq, Debug, Default)]\n");
         append!(out, "pub struct {} {{\n", name);
         for field in self.fields.iter() {
-            let typename = &(*field.r#type.borrow()).0;
+            let type_info = &*field.r#type.borrow();
+            let mut typename: &str = &type_info.0;
+            if let check::ResolvedType::Builtin(b) = &type_info.1 {
+                typename = match b {
+                    check::Builtin::Uint8 => "u8",
+                    check::Builtin::Uint32 => "u16",
+                    check::Builtin::Uint16 => "u32",
+                    check::Builtin::Int8 => "i8",
+                    check::Builtin::Int16 => "i16",
+                    check::Builtin::Int32 => "i32",
+                    check::Builtin::Float => "f32",
+                    check::Builtin::String => "String",
+                };
+            }
             if field.array {
                 append!(out, "    pub {}: Vec<{}>,\n", field.name, typename);
             } else {
@@ -551,7 +556,6 @@ fn gen_def_enum_default_impl(name: String, ty: &check::Enum, out: &mut String) {
     indent += "    ";
     append!(out, "{}fn default() -> Self {{\n", indent);
     indent += "    ";
-    // TODO: ensure enum has non-zero variants.len()
     append!(out, "{}{}::{}\n", indent, name, ty.variants.first().unwrap().name);
     indent.truncate(indent.len() - 4);
     append!(out, "{}}}\n", indent);
@@ -638,14 +642,6 @@ mod tests {
             "
 #![allow(non_camel_case_types, unused_imports, clippy::field_reassign_with_default)]
 use std::convert::TryFrom;
-pub type uint8 = u8;
-pub type uint16 = u16;
-pub type uint32 = u32;
-pub type int8 = i8;
-pub type int16 = i16;
-pub type int32 = i32;
-pub type float = f32;
-pub type string = String;
 "
         );
     }
@@ -676,8 +672,8 @@ pub type string = String;
             "
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Position {
-    pub x: float,
-    pub y: float,
+    pub x: f32,
+    pub y: f32,
 }
 "
         );
@@ -808,10 +804,10 @@ impl std::convert::TryFrom<u8> for Flag {
             "
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Test {
-    pub builtin_scalar: uint8,
-    pub builtin_array: Vec<uint8>,
-    pub string_scalar: string,
-    pub string_array: Vec<string>,
+    pub builtin_scalar: u8,
+    pub builtin_array: Vec<u8>,
+    pub string_scalar: String,
+    pub string_array: Vec<String>,
     pub enum_scalar: Flag,
     pub enum_array: Vec<Flag>,
     pub struct_scalar: Position,

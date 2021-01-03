@@ -7,8 +7,9 @@ use std::rc::Rc;
 use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
 
 // TODO: real error type + report in a nice way
+// TODO!: enforce more than one variant on enums
 // TODO!: enforce unique field names
-// TODO!: enforce unique enum names
+// TODO!: enforce unique type names
 // TODO!: discard empty structs + output warning
 // TODO!: discard unused types (can use Rc::strong_count() > 1) + output warning
 
