@@ -56,3 +56,13 @@ describe("Reader scalar", function () {
         expect(actual).toEqual(expected);
     });
 });
+describe("Out of bounds read", function () {
+    for (const test_case of cases) {
+        const [type, ,] = test_case;
+        it(`throws on read_${type}`, function () {
+            const reader = new Reader(new ArrayBuffer(0));
+            const fn = () => reader[`read_${type}` as ReaderMethodKey]();
+            expect(fn).toThrowError("Out of bounds");
+        })
+    }
+})
