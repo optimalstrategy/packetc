@@ -7,8 +7,6 @@ use std::rc::Rc;
 use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
 
 // TODO: real error type + report in a nice way
-// TODO!: discard empty structs + output warning
-// TODO!: discard unused types (can use Rc::strong_count() > 1) + output warning
 
 fn get_export(ast: &[ast::Node]) -> Result<String, String> {
     let mut export = None;
@@ -101,6 +99,9 @@ pub struct Ptr<T>(pub Rc<RefCell<T>>);
 impl<T> Ptr<T> {
     pub fn new(value: T) -> Ptr<T> {
         Ptr(Rc::new(RefCell::new(value)))
+    }
+    pub fn strong_count(&self) -> usize {
+        Rc::strong_count(&self.0)
     }
 }
 impl<T> std::ops::Deref for Ptr<T> {
@@ -364,6 +365,10 @@ fn resolve_second_pass(
     Ok(())
 }
 
+fn is_struct_variant(ty: &ResolvedType) -> bool {
+    std::mem::discriminant(ty) == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
+}
+
 fn get_struct_variant(ty: &ResolvedType) -> Struct {
     match ty {
         ResolvedType::Struct(s) => s.clone(),
@@ -371,18 +376,40 @@ fn get_struct_variant(ty: &ResolvedType) -> Struct {
     }
 }
 
+fn collect_used_types(visited: &mut HashSet<String>, ty: &(String, ResolvedType)) {
+    visited.insert(ty.0.clone());
+    if is_struct_variant(&ty.1) {
+        let ty = get_struct_variant(&ty.1);
+        for field in ty.fields.iter() {
+            collect_used_types(visited, &(*field.r#type.borrow()));
+        }
+    }
+}
+
+fn remove_unused(visited: HashSet<String>, resolved: &mut HashMap<String, Ptr<(String, ResolvedType)>>) {
+    // TODO: print a warning (if configured) for each unused type
+    for name in resolved.iter().map(|t| t.0.clone()).collect::<Vec<String>>() {
+        if !visited.contains(&name) {
+            resolved.remove(&name);
+        }
+    }
+}
+
 fn resolve_export(
     name: String,
-    resolved: &HashMap<String, Ptr<(String, ResolvedType)>>,
+    resolved: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
 ) -> Result<Export, String> {
     if let Some(export) = resolved.get(&name) {
-        if std::mem::discriminant(&(*export.borrow()).1)
-            == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
-        {
-            Ok(Export {
-                name,
-                r#struct: get_struct_variant(&(*export.borrow()).1),
-            })
+        if is_struct_variant(&(*export.borrow()).1) {
+            // Use this opportunity to discard unused types.
+            let mut visited = vec![name.clone()].into_iter().collect::<HashSet<String>>();
+            let ty = get_struct_variant(&(*export.borrow()).1);
+            for field in ty.fields.iter() {
+                collect_used_types(&mut visited, &(*field.r#type.borrow()));
+            }
+            remove_unused(visited, resolved);
+
+            Ok(Export { name, r#struct: ty })
         } else {
             Err(format!("Attempted to export '{}', which is not a struct", name))
         }
@@ -420,7 +447,7 @@ pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
         return Err(err);
     };
     // export pass: collect the resolved type we're exporting
-    let export = match resolve_export(export, &cache) {
+    let export = match resolve_export(export, &mut cache) {
         Ok(e) => e,
         Err(err) => return Err(err),
     };
@@ -429,6 +456,8 @@ pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
 
 #[cfg(test)]
 mod tests {
+    use std::vec;
+
     use super::*;
 
     #[test]
@@ -678,6 +707,38 @@ mod tests {
             type_check(test).unwrap_err(),
             "Declaration for type 'Flag' does not exist".to_string()
         );
+    }
+
+    #[test]
+    fn discards_unused() {
+        // any types which aren't used are silently discarded,
+        // so that they don't clutter the final generated file.
+        let test: ast::AST = {
+            use ast::*;
+            vec![
+                Node::Decl(
+                    "UnusedType".to_string(),
+                    Type::Struct(Struct(vec![(
+                        "test".to_string(),
+                        Unresolved("uint8".to_string(), false),
+                    )])),
+                ),
+                Node::Decl(
+                    "Flag".to_string(),
+                    Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
+                ),
+                Node::Decl(
+                    "Test".to_string(),
+                    Type::Struct(Struct(vec![(
+                        "flag".to_string(),
+                        Unresolved("Flag".to_string(), false),
+                    )])),
+                ),
+                Node::Export("Test".to_string()),
+            ]
+        };
+        let checked = type_check(test).unwrap();
+        assert!(!checked.types.contains_key("UnusedType"));
     }
 
     #[test]
