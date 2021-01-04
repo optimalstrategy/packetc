@@ -8,9 +8,7 @@ This library provides the following APIs for reading and writing binary data:
 // reading
 let data: &[u8] = ...;
 let mut reader = Reader::new(data);
-// reads aren't bounds checked
-// use .remaining() to check there is enough data for X
-reader.remaining();     // returns usize
+// reads are bounds checked, all of these actually return Result<T, packet::Error>
 reader.read_uint8();    // returns u8
 reader.read_uint16();   // returns u16
 reader.read_uint32();   // returns u32
@@ -18,8 +16,7 @@ reader.read_int8();     // returns i8
 reader.read_int16();    // returns i16
 reader.read_int32();    // returns i32
 reader.read_float();    // returns f32
-let len = ...;
-reader.read_slice(len); // returns &[u8]
+reader.read_string(len); // returns String
 
 // writing
 let mut writer = Writer::new();
@@ -35,8 +32,7 @@ writer.write_int8(0);       // takes i8
 writer.write_int16(0);      // takes i16
 writer.write_int32(0);      // takes i32
 writer.write_float(0);      // takes f32
-let data: [u8; _] = ...;    
-writer.write_slice(&data);  // takes &[u8]
+writer.write_string(&data);  // takes &str
 let out = writer.finish();  // returns Vec<u8>
 ```
 
