@@ -7,7 +7,6 @@ use std::rc::Rc;
 use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
 
 // TODO: real error type + report in a nice way
-// TODO!: enforce more than one variant on enums
 // TODO!: enforce unique field names
 // TODO!: enforce unique type names
 // TODO!: discard empty structs + output warning
@@ -224,10 +223,13 @@ fn resolve_one_first_pass(
             };
         }
         ast::Type::Struct(s) => {
-            // TODO: prevent recursive struct type
-            // by checking if the type references itself
+            let mut field_names = HashSet::new();
             let mut fields = Vec::new();
             for (fname, fty) in s.0.iter() {
+                if field_names.contains(&fname) {
+                    return Err(format!("Duplicate field '{}' on struct '{}'", fname, name));
+                }
+                field_names.insert(fname);
                 if let Some(field) = resolve_struct_field(fname.clone(), fty.clone(), builtins) {
                     fields.push(field);
                 } else {
@@ -521,6 +523,26 @@ mod tests {
             ])),
         )];
         assert_eq!(type_check(test).unwrap_err(), "Schema has no export".to_string());
+    }
+
+    #[test]
+    fn duplicate_field_name() {
+        // a struct field must have a unique name
+        use ast::*;
+        let test: AST = vec![
+            Node::Decl(
+                "Position".to_string(),
+                Type::Struct(Struct(vec![
+                    ("x".to_string(), Unresolved("float".to_string(), false)),
+                    ("x".to_string(), Unresolved("float".to_string(), false)),
+                ])),
+            ),
+            Node::Export("Position".to_string()),
+        ];
+        assert_eq!(
+            type_check(test).unwrap_err(),
+            "Duplicate field 'x' on struct 'Position'".to_string()
+        );
     }
 
     #[test]
