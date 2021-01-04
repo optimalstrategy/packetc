@@ -18,8 +18,7 @@ reader.read_int8();     // returns number
 reader.read_int16();    // returns number
 reader.read_int32();    // returns number
 reader.read_float();    // returns number
-let len: number = ...;
-reader.read_slice(len); // returns Uint8Array
+reader.read_string(len); // returns string
 
 // writing
 let mut writer = new Writer();
@@ -35,8 +34,7 @@ writer.write_int8(0);       // takes number
 writer.write_int16(0);      // takes number
 writer.write_int32(0);      // takes number
 writer.write_float(0);      // takes number
-let data: Uint8Array = ...;
-writer.write_slice(data);   // takes Uint8Array
+writer.write_string("test");   // takes string
 let out = writer.finish();  // returns ArrayBuffer
 ```
 
