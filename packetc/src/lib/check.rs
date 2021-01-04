@@ -7,8 +7,6 @@ use std::rc::Rc;
 use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
 
 // TODO: real error type + report in a nice way
-// TODO!: enforce unique field names
-// TODO!: enforce unique type names
 // TODO!: discard empty structs + output warning
 // TODO!: discard unused types (can use Rc::strong_count() > 1) + output warning
 
@@ -173,26 +171,31 @@ fn resolve_struct_field(
 }
 
 fn resolve_enum(name: &str, ty: ast::Enum) -> Result<(EnumRepr, Vec<EnumVariant>), String> {
-    // resolve the variants by assigning each one to a single bit
-    let mut count = 0usize;
-    let variants =
-        ty.0.into_iter()
-            .map(|s| EnumVariant {
-                name: s,
-                value: {
-                    count += 1;
-                    count - 1
-                },
-            })
-            .collect();
     // find the smallest possible representation for this enum
-    let repr = match count {
+    let repr = match ty.0.len() {
         n if n == 0 => return Err(format!("Enum '{}' must have at least one variant", name)),
         n if n <= 8 => EnumRepr::U8,
         n if n <= 16 => EnumRepr::U16,
         n if n <= 32 => EnumRepr::U32,
         n => return Err(format!("Enum '{}' has too many variants ({}/32)", name, n)),
     };
+    // resolve the variants by assigning each one to a single bit
+    let mut variant_names = HashSet::new();
+    let mut count = 0usize;
+    let mut variants = Vec::with_capacity(ty.0.len());
+    for variant in ty.0.into_iter() {
+        if variant_names.contains(&variant) {
+            return Err(format!("Duplicate variant '{}' on enum '{}'", variant, name));
+        }
+        variant_names.insert(variant.clone());
+        variants.push(EnumVariant {
+            name: variant,
+            value: {
+                count += 1;
+                count - 1
+            },
+        });
+    }
     Ok((repr, variants))
 }
 
@@ -523,6 +526,29 @@ mod tests {
             ])),
         )];
         assert_eq!(type_check(test).unwrap_err(), "Schema has no export".to_string());
+    }
+
+    #[test]
+    fn duplicate_enum_variants() {
+        use ast::*;
+        let test: AST = vec![
+            Node::Decl(
+                "Flag".to_string(),
+                Type::Enum(Enum(vec!["A".to_string(), "A".to_string()])),
+            ),
+            Node::Decl(
+                "Test".to_string(),
+                Type::Struct(Struct(vec![(
+                    "flag".to_string(),
+                    Unresolved("Flag".to_string(), false),
+                )])),
+            ),
+            Node::Export("Test".to_string()),
+        ];
+        assert_eq!(
+            type_check(test).unwrap_err(),
+            "Duplicate variant 'A' on enum 'Flag'".to_string()
+        );
     }
 
     #[test]
