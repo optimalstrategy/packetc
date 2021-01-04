@@ -27,12 +27,14 @@ Value: struct {
   a: uint32, b: int32, c: uint8, d: uint8
 }
 # Structs are composed of named and strongly typed fields.
-# The type of a field may be either one of the built-in types, a struct, or an enum.
-# Array types are declared with a "[]" suffix.
 ComplexType: struct {
-    flag: Flag,
-    positions: Position[],
+    # Array types are declared with a "[]" suffix.
+    # The type of a field may be either one of the built-in types,
     names: string[],
+    # a struct,
+    positions: Position[],
+    # or an enum.
+    flag: Flag,
     values: Value[]
 }
 

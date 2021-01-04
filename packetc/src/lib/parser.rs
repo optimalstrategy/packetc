@@ -45,11 +45,16 @@ peg::parser!(pub grammar pkt() for str {
     rule enum_type() -> Enum
         = _ "enum" _ "{" ___ variants:(enum_variant()*) ___ "}" { Enum(variants) }
 
-    rule struct_field() -> (String, Unresolved)
-        = i:ident() _ ":" _ t:string() a:("[]"?) ___ ","? ___ { (i, Unresolved(t, a.is_some())) }
+    rule struct_field() -> Option<(String, Unresolved)>
+        = comment() ___ { None }
+        / i:ident() _ ":" _ t:string() a:("[]"?) ___ ","? ___ { Some((i, Unresolved(t, a.is_some()))) }
     /// Parses a struct in the from `identifier: struct { name: type or type[], ... }
     rule struct_type() -> Struct
-        = _ "struct" _ "{" ___ fields:(struct_field()*) ___ "}" { Struct(fields) }
+        = _ "struct" _ "{" ___ fields:(struct_field()*) ___ "}" {
+            Struct(fields.into_iter()
+            .filter_map(|x| x)
+            .collect())
+        }
 
     /// Recursively parses a type
     rule r#type() -> Type
@@ -212,6 +217,28 @@ mod tests {
                 "v".to_string(),
                 Unresolved("uint8".to_string(), false),
             )])),
+        )];
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn parse_comment_inside_brackets() {
+        let test = r#"
+        a: struct {
+            # this is a comment placed infront of fields
+            a: uint8,
+            # this is a comment placed inbetween fields
+            b: uint8
+            # this is a comment placed after of fields
+        }
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "a".to_string(),
+            Type::Struct(Struct(vec![
+                ("a".to_string(), Unresolved("uint8".to_string(), false)),
+                ("b".to_string(), Unresolved("uint8".to_string(), false)),
+            ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
