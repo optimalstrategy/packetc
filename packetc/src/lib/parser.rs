@@ -19,7 +19,7 @@ peg::parser!(pub grammar pkt() for str {
     rule string() -> String
         = s:$(['a'..='z'|'A'..='Z'|'0'..='9'|'_']*) { s.to_string() }
 
-    /// Parses reserved keywords (the base types)
+    /// Parses reserved keywords (the base types + enum/struct keywords)
     rule reserved()
         = "uint8"
         / "uint16"

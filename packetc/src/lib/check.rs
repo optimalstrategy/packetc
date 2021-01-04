@@ -188,6 +188,7 @@ fn resolve_enum(name: &str, ty: ast::Enum) -> Result<(EnumRepr, Vec<EnumVariant>
             .collect();
     // find the smallest possible representation for this enum
     let repr = match count {
+        n if n == 0 => return Err(format!("Enum '{}' must have at least one variant", name)),
         n if n <= 8 => EnumRepr::U8,
         n if n <= 16 => EnumRepr::U16,
         n if n <= 32 => EnumRepr::U32,
@@ -464,6 +465,27 @@ mod tests {
         // TODO: check equality of Resolved AST instead of checking if this is an error
         // Rc<T> == Rc<T> if T == T, according to https://doc.rust-lang.org/src/alloc/rc.rs.html#1325
         type_check(test).unwrap();
+    }
+
+    #[test]
+    fn empty_enum() {
+        // an enum must have at least one variant
+        use ast::*;
+        let test: AST = vec![
+            Node::Decl("Flag".to_string(), Type::Enum(Enum(vec![]))),
+            Node::Decl(
+                "Test".to_string(),
+                Type::Struct(Struct(vec![(
+                    "flag".to_string(),
+                    Unresolved("Flag".to_string(), false),
+                )])),
+            ),
+            Node::Export("Test".to_string()),
+        ];
+        assert_eq!(
+            type_check(test).unwrap_err(),
+            "Enum 'Flag' must have at least one variant".to_string()
+        );
     }
 
     #[test]
