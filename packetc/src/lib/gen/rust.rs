@@ -313,7 +313,7 @@ fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, ty
             );
             append!(
                 ctx.out,
-                "{}{}.push(reader.read_string({})?.to_string());\n",
+                "{}{}.push(reader.read_string({})?);\n",
                 ctx.indentation,
                 out_var,
                 len_var
@@ -345,7 +345,7 @@ fn gen_read_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_nam
             );
             append!(
                 ctx.out,
-                "{}{} = reader.read_string({})?.to_string();\n",
+                "{}{} = reader.read_string({})?;\n",
                 ctx.indentation,
                 fname(&ctx.stack),
                 len_var
@@ -531,8 +531,8 @@ impl Definition<Rust> for check::Struct {
             if let check::ResolvedType::Builtin(b) = &type_info.1 {
                 typename = match b {
                     check::Builtin::Uint8 => "u8",
-                    check::Builtin::Uint32 => "u16",
-                    check::Builtin::Uint16 => "u32",
+                    check::Builtin::Uint16 => "u16",
+                    check::Builtin::Uint32 => "u32",
                     check::Builtin::Int8 => "i8",
                     check::Builtin::Int16 => "i16",
                     check::Builtin::Int32 => "i32",
@@ -1131,12 +1131,12 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut Test) -> Result<()
         output.builtin_array.push(reader.read_uint8()?);
     }
     let output_string_scalar_len = reader.read_uint32()? as usize;
-    output.string_scalar = reader.read_string(output_string_scalar_len)?.to_string();
+    output.string_scalar = reader.read_string(output_string_scalar_len)?;
     let output_string_array_len = reader.read_uint32()? as usize;
     output.string_array.reserve(output_string_array_len);
     for _ in 0..output_string_array_len {
         let output_string_array_item_len = reader.read_uint32()? as usize;
-        output.string_array.push(reader.read_string(output_string_array_item_len)?.to_string());
+        output.string_array.push(reader.read_string(output_string_array_item_len)?);
     }
     output.enum_scalar = Flag::try_from(reader.read_uint8()?)?;
     let output_enum_array_len = reader.read_uint32()? as usize;

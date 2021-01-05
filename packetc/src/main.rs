@@ -41,7 +41,8 @@ fn main() {
     println!("Compiling file {}...", opts.path);
     match match opts.lang {
         Lang::Rust => lib::compile::<lib::gen::rust::Rust>(&schema),
-        _ => return println!("not implemented"),
+        Lang::TS => lib::compile::<lib::gen::ts::TypeScript>(&schema),
+        //_ => return println!("not implemented"),
     } {
         Ok(generated) => {
             println!("Done.\nWriting to {}...", &opts.out);

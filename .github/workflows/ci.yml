@@ -84,3 +84,29 @@ jobs:
         with:
           command: clippy
           args: -- -D warnings
+
+  integration:
+    name: Integration
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Get Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          toolchain: nightly
+          override: true
+      - name: Get Node toolchain
+        uses: actions/setup-node@v2
+        with:
+          node-version: 14
+      # install typescript+jest
+      - run: npm install --prefix integration/ts
+      # run compiler on integration/test.pkt
+      # output into the corresponding directories
+      - run: cargo run --bin packetc rust integration/test.pkt integration/rust/src/generated.rs
+      - run: cargo run --bin packetc ts integration/test.pkt integration/ts/generated.ts
+      # run rust test
+      - run: cargo test --manifest-path=integration/rust
+      # run ts test
+      - run: npm test --prefix integration/ts

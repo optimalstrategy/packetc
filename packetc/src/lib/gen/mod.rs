@@ -4,9 +4,12 @@ use super::*;
 
 pub fn generate<Lang>(from: check::Resolved) -> String
 where
-    Lang: Language + Default,
+    Lang: Language + Default + Common,
+    check::Enum: Definition<Lang>,
+    check::Struct: Definition<Lang>,
+    check::Export: ReadImpl<Lang> + WriteImpl<Lang>,
 {
-    let mut gen = Generator::new();
+    let mut gen = Generator::<Lang>::new();
     gen.push_meta();
     gen.push_common();
     for (name, ty) in from.types {

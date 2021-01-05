@@ -1,0 +1,10 @@
+[package]
+name = "integration"
+version = "0.1.0"
+authors = ["jprochazk <honza.spacir@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+packet = { package = "packet_rs", path = "../../packet_rs/" }
+
+[workspace]
