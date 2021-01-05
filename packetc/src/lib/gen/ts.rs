@@ -696,7 +696,7 @@ export interface Position {
         assert_eq!(
             actual,
             "
-const enum Flag {
+export const enum Flag {
     A = 1 << 0,
     B = 1 << 1,
 }
