@@ -1,14 +1,14 @@
 {
     "name": "@jprochazk/packet",
     "version": "0.0.1",
-    "description": "Support library for packetc",
+    "description": "Integration test",
     "author": "Jan Procházka",
     "license": "MIT",
     "scripts": {
         "test": "jest"
     },
     "dependencies": {
-        "packet": "file:../../packet_ts/"
+        "packet": "file:../../packet_ts"
     },
     "devDependencies": {
         "@types/jest": "^26.0.14",

@@ -100,6 +100,9 @@ jobs:
         uses: actions/setup-node@v2
         with:
           node-version: 14
+      # install & build packet_ts
+      - run: npm install --prefix packet_ts
+      - run: npm run build --prefix packet_ts
       # install typescript+jest
       - run: npm install --prefix integration/ts
       # run compiler on integration/test.pkt
@@ -109,4 +112,4 @@ jobs:
       # run rust test
       - run: cargo test --manifest-path=integration/rust/Cargo.toml
       # run ts test
-      - run: npm test --prefix integration/ts
+      - run: npm run test --prefix integration/ts
