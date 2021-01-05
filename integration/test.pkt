@@ -1,12 +1,25 @@
-Flag: enum { A, B }
-Position: struct { x: float, y: float }
-Value: struct { 
-  a: uint32, b: int32, c: uint8, d: uint8
+Flag: enum {
+    A,
+    B
 }
+
+Position: struct { 
+    x: float,
+    y: float
+}
+
+Value: struct { 
+    a: uint32, 
+    b: int32, 
+    c: uint8, 
+    d: uint8
+}
+
 ComplexType: struct {
     names: string[],
     positions: Position[],
     flag: Flag,
     values: Value[]
 }
+
 export ComplexType
