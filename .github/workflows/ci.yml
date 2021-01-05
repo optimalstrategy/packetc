@@ -107,6 +107,6 @@ jobs:
       - run: cargo run --bin packetc rust integration/test.pkt integration/rust/src/generated.rs
       - run: cargo run --bin packetc ts integration/test.pkt integration/ts/generated.ts
       # run rust test
-      - run: cargo test --manifest-path=integration/rust
+      - run: cargo test --manifest-path=integration/rust/Cargo.toml
       # run ts test
       - run: npm test --prefix integration/ts
