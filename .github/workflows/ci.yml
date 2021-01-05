@@ -105,7 +105,7 @@ jobs:
       # run compiler on integration/test.pkt
       # output into the corresponding directories
       - run: cargo run --bin packetc rust integration/test.pkt integration/rust/src/generated.rs
-      - run: cargo run --bin packetc ts integration/test.pkt integration/ts/generated.ts
+      - run: cargo run --bin packetc ts integration/test.pkt integration/ts/src/generated.ts
       # run rust test
       - run: cargo test --manifest-path=integration/rust/Cargo.toml
       # run ts test
