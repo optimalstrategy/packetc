@@ -120,7 +120,12 @@ fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_na
                 ctx.indentation,
                 fname
             );
-            append!(ctx.out, "{}writer.write_string(&{});\n", ctx.indentation, fname);
+            append!(
+                ctx.out,
+                "{}writer.write_string(&{});\n",
+                ctx.indentation,
+                fname
+            );
         }
         _ => append!(
             ctx.out,
@@ -294,7 +299,13 @@ fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, ty
         len_var
     );
     let out_var = fname.clone();
-    append!(ctx.out, "{}{}.reserve({});\n", ctx.indentation, fname, len_var);
+    append!(
+        ctx.out,
+        "{}{}.reserve({});\n",
+        ctx.indentation,
+        fname,
+        len_var
+    );
     let item_var = varname(&ctx.stack, "item");
     append!(ctx.out, "{}for _ in 0..{} {{\n", ctx.indentation, len_var);
     let mut old_stack = Vec::new();
@@ -371,7 +382,13 @@ fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_nam
         len_var
     );
     let out_var = fname.clone();
-    append!(ctx.out, "{}{}.reserve({});\n", ctx.indentation, fname, len_var);
+    append!(
+        ctx.out,
+        "{}{}.reserve({});\n",
+        ctx.indentation,
+        fname,
+        len_var
+    );
     let item_var = varname(&ctx.stack, "item");
     append!(ctx.out, "{}for _ in 0..{} {{\n", ctx.indentation, len_var);
     let mut old_stack = Vec::new();
@@ -423,7 +440,13 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type
         ctx.indentation,
         len_var
     );
-    append!(ctx.out, "{}{}.reserve({});\n", ctx.indentation, fname, len_var);
+    append!(
+        ctx.out,
+        "{}{}.reserve({});\n",
+        ctx.indentation,
+        fname,
+        len_var
+    );
     let item_var = varname(&ctx.stack, "item");
     append!(ctx.out, "{}for _ in 0..{} {{\n", ctx.indentation, len_var);
     let mut old_stack = Vec::new();
@@ -556,7 +579,13 @@ fn gen_def_enum_default_impl(name: String, ty: &check::Enum, out: &mut String) {
     indent += "    ";
     append!(out, "{}fn default() -> Self {{\n", indent);
     indent += "    ";
-    append!(out, "{}{}::{}\n", indent, name, ty.variants.first().unwrap().name);
+    append!(
+        out,
+        "{}{}::{}\n",
+        indent,
+        name,
+        ty.variants.first().unwrap().name
+    );
     indent.truncate(indent.len() - 4);
     append!(out, "{}}}\n", indent);
     append!(out, "}}\n");
@@ -564,9 +593,24 @@ fn gen_def_enum_default_impl(name: String, ty: &check::Enum, out: &mut String) {
 fn gen_def_enum_tryfrom_impl(name: String, ty: &check::Enum, out: &mut String) {
     let mut indent = "".to_string();
     match ty.repr {
-        check::EnumRepr::U8 => append!(out, "{}impl std::convert::TryFrom<u8> for {} {{\n", indent, name),
-        check::EnumRepr::U16 => append!(out, "{}impl std::convert::TryFrom<u16> for {} {{\n", indent, name),
-        check::EnumRepr::U32 => append!(out, "{}impl std::convert::TryFrom<u32> for {} {{\n", indent, name),
+        check::EnumRepr::U8 => append!(
+            out,
+            "{}impl std::convert::TryFrom<u8> for {} {{\n",
+            indent,
+            name
+        ),
+        check::EnumRepr::U16 => append!(
+            out,
+            "{}impl std::convert::TryFrom<u16> for {} {{\n",
+            indent,
+            name
+        ),
+        check::EnumRepr::U32 => append!(
+            out,
+            "{}impl std::convert::TryFrom<u32> for {} {{\n",
+            indent,
+            name
+        ),
     }
     indent += "    ";
     append!(out, "{}type Error = packet::Error;\n", indent);
@@ -736,22 +780,34 @@ impl std::convert::TryFrom<u8> for Flag {
                 fields: vec![
                     StructField {
                         name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "builtin_array".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: true,
                     },
                     StructField {
                         name: "string_scalar".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "string_array".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: true,
                     },
                     StructField {
@@ -961,22 +1017,34 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut TestB) -> Result<(
                 fields: vec![
                     StructField {
                         name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "builtin_array".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: true,
                     },
                     StructField {
                         name: "string_scalar".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "string_array".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: true,
                     },
                     StructField {
@@ -991,7 +1059,10 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut TestB) -> Result<(
                     },
                     StructField {
                         name: "struct_scalar".to_string(),
-                        r#type: Ptr::new(("Position".to_string(), ResolvedType::Struct(position.clone()))),
+                        r#type: Ptr::new((
+                            "Position".to_string(),
+                            ResolvedType::Struct(position.clone()),
+                        )),
                         array: false,
                     },
                     StructField {
@@ -1075,22 +1146,34 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
                 fields: vec![
                     StructField {
                         name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "builtin_array".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: true,
                     },
                     StructField {
                         name: "string_scalar".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "string_array".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: true,
                     },
                     StructField {
@@ -1105,7 +1188,10 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
                     },
                     StructField {
                         name: "struct_scalar".to_string(),
-                        r#type: Ptr::new(("Position".to_string(), ResolvedType::Struct(position.clone()))),
+                        r#type: Ptr::new((
+                            "Position".to_string(),
+                            ResolvedType::Struct(position.clone()),
+                        )),
                         array: false,
                     },
                     StructField {

@@ -90,7 +90,12 @@ fn gen_write_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, t
                 ctx.indentation,
                 item_var
             );
-            append!(ctx.out, "{}writer.write_string({});\n", ctx.indentation, item_var);
+            append!(
+                ctx.out,
+                "{}writer.write_string({});\n",
+                ctx.indentation,
+                item_var
+            );
         }
         _ => append!(
             ctx.out,
@@ -116,7 +121,12 @@ fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_na
                 ctx.indentation,
                 fname
             );
-            append!(ctx.out, "{}writer.write_string({});\n", ctx.indentation, fname);
+            append!(
+                ctx.out,
+                "{}writer.write_string({});\n",
+                ctx.indentation,
+                fname
+            );
         }
         _ => append!(
             ctx.out,
@@ -475,7 +485,12 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &
     ctx.push_fname(item_var.clone());
     ctx.push_indent();
 
-    append!(ctx.out, "{}let {}: any = {{}};\n", ctx.indentation, item_var);
+    append!(
+        ctx.out,
+        "{}let {}: any = {{}};\n",
+        ctx.indentation,
+        item_var
+    );
     for field in &type_info.fields {
         ctx.push_fname(field.name.clone());
         let field_type = &*field.r#type.borrow();
@@ -717,22 +732,34 @@ function Flag_try_from(value: number): Flag {
                 fields: vec![
                     StructField {
                         name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "builtin_array".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: true,
                     },
                     StructField {
                         name: "string_scalar".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "string_array".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: true,
                     },
                     StructField {
@@ -940,22 +967,34 @@ export function read(reader: Reader, output: TestB) {
                 fields: vec![
                     StructField {
                         name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "builtin_array".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: true,
                     },
                     StructField {
                         name: "string_scalar".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "string_array".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: true,
                     },
                     StructField {
@@ -970,7 +1009,10 @@ export function read(reader: Reader, output: TestB) {
                     },
                     StructField {
                         name: "struct_scalar".to_string(),
-                        r#type: Ptr::new(("Position".to_string(), ResolvedType::Struct(position.clone()))),
+                        r#type: Ptr::new((
+                            "Position".to_string(),
+                            ResolvedType::Struct(position.clone()),
+                        )),
                         array: false,
                     },
                     StructField {
@@ -1054,22 +1096,34 @@ export function write(writer: Writer, input: Test) {
                 fields: vec![
                     StructField {
                         name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "builtin_array".to_string(),
-                        r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                        r#type: Ptr::new((
+                            "uint8".to_string(),
+                            ResolvedType::Builtin(Builtin::Uint8),
+                        )),
                         array: true,
                     },
                     StructField {
                         name: "string_scalar".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: false,
                     },
                     StructField {
                         name: "string_array".to_string(),
-                        r#type: Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+                        r#type: Ptr::new((
+                            "string".to_string(),
+                            ResolvedType::Builtin(Builtin::String),
+                        )),
                         array: true,
                     },
                     StructField {
@@ -1084,7 +1138,10 @@ export function write(writer: Writer, input: Test) {
                     },
                     StructField {
                         name: "struct_scalar".to_string(),
-                        r#type: Ptr::new(("Position".to_string(), ResolvedType::Struct(position.clone()))),
+                        r#type: Ptr::new((
+                            "Position".to_string(),
+                            ResolvedType::Struct(position.clone()),
+                        )),
                         array: false,
                     },
                     StructField {

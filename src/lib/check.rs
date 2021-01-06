@@ -186,7 +186,10 @@ fn resolve_enum(name: &str, ty: ast::Enum) -> Result<(EnumRepr, Vec<EnumVariant>
     let mut variants = Vec::with_capacity(ty.0.len());
     for variant in ty.0.into_iter() {
         if variant_names.contains(&variant) {
-            return Err(format!("Duplicate variant '{}' on enum '{}'", variant, name));
+            return Err(format!(
+                "Duplicate variant '{}' on enum '{}'",
+                variant, name
+            ));
         }
         variant_names.insert(variant.clone());
         variants.push(EnumVariant {
@@ -295,7 +298,8 @@ fn resolve_one_second_pass(
         let mut not_resolved = Vec::new();
         let mut fields = Vec::new();
         for (field_name, field_type) in s.0.into_iter() {
-            if let Some(field) = resolve_struct_field(field_name.clone(), field_type.clone(), cache) {
+            if let Some(field) = resolve_struct_field(field_name.clone(), field_type.clone(), cache)
+            {
                 fields.push(field);
             } else {
                 not_resolved.push((field_name, field_type));
@@ -315,14 +319,19 @@ fn resolve_one_second_pass(
                 if let Some(utype) = unresolved.remove(&ftype_name) {
                     // if it exists, try to resolve it by recursively calling
                     // the function we're in
-                    if let Err(e) = resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved) {
+                    if let Err(e) =
+                        resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved)
+                    {
                         // it may fail, so propagate the error out
                         return Err(e);
                     }
                 } else {
                     // if the field's typename is not in unresolved, that means it doesn't exist
                     // (because it isn't resolved nor unresolved)
-                    return Err(format!("Declaration for type '{}' does not exist", ftype_name));
+                    return Err(format!(
+                        "Declaration for type '{}' does not exist",
+                        ftype_name
+                    ));
                 }
             }
             // if we get here, it means all the field's types were successfully resolved and placed in the cache
@@ -366,7 +375,8 @@ fn resolve_second_pass(
 }
 
 fn is_struct_variant(ty: &ResolvedType) -> bool {
-    std::mem::discriminant(ty) == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
+    std::mem::discriminant(ty)
+        == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
 }
 
 fn get_struct_variant(ty: &ResolvedType) -> Struct {
@@ -386,9 +396,16 @@ fn collect_used_types(visited: &mut HashSet<String>, ty: &(String, ResolvedType)
     }
 }
 
-fn remove_unused(visited: HashSet<String>, resolved: &mut HashMap<String, Ptr<(String, ResolvedType)>>) {
+fn remove_unused(
+    visited: HashSet<String>,
+    resolved: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
+) {
     // TODO: print a warning (if configured) for each unused type
-    for name in resolved.iter().map(|t| t.0.clone()).collect::<Vec<String>>() {
+    for name in resolved
+        .iter()
+        .map(|t| t.0.clone())
+        .collect::<Vec<String>>()
+    {
         if !visited.contains(&name) {
             resolved.remove(&name);
         }
@@ -411,7 +428,10 @@ fn resolve_export(
 
             Ok(Export { name, r#struct: ty })
         } else {
-            Err(format!("Attempted to export '{}', which is not a struct", name))
+            Err(format!(
+                "Attempted to export '{}', which is not a struct",
+                name
+            ))
         }
     } else {
         Err(format!("Export '{}' could not be resolved", name))
@@ -442,7 +462,10 @@ pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
         return Err(err);
     };
     // second pass: collect structs with other structs (made up of builtins) as field types
-    let mut cache = cache.into_iter().chain(first_pass).collect::<HashMap<_, _>>();
+    let mut cache = cache
+        .into_iter()
+        .chain(first_pass)
+        .collect::<HashMap<_, _>>();
     if let Err(err) = resolve_second_pass(&mut cache, unresolved) {
         return Err(err);
     };
@@ -451,7 +474,10 @@ pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
         Ok(e) => e,
         Err(err) => return Err(err),
     };
-    Ok(Resolved { export, types: cache })
+    Ok(Resolved {
+        export,
+        types: cache,
+    })
 }
 
 #[cfg(test)]
@@ -554,7 +580,10 @@ mod tests {
                 ("y".to_string(), Unresolved("float".to_string(), false)),
             ])),
         )];
-        assert_eq!(type_check(test).unwrap_err(), "Schema has no export".to_string());
+        assert_eq!(
+            type_check(test).unwrap_err(),
+            "Schema has no export".to_string()
+        );
     }
 
     #[test]
