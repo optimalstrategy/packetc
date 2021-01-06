@@ -1,5 +1,4 @@
 extern crate chrono;
-extern crate packet;
 extern crate peg;
 #[macro_use]
 extern crate thiserror;
