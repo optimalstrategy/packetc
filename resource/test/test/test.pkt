@@ -1,0 +1,15 @@
+# This is a comment.
+# Below is what a fairly complex packet may look like
+Flag: enum { A, B }
+Position: struct { x: float, y: float }
+Value: struct { 
+  a: uint32, b: int32, c: uint8, d: uint8
+}
+ComplexType: struct {
+    flag: Flag,
+    positions: Position[],
+    names: string[],
+    values: Value[]
+}
+
+export ComplexType
