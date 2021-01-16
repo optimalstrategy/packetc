@@ -6,11 +6,11 @@ use ast::*;
 
 peg::parser!(pub grammar pkt() for str {
     /// Parses whitespace
-    rule _() = [' ']*
+    rule _() = [' ' | '\t']*
     /// Parses newlines
-    rule __() = ['\n'|'\r']*
+    rule __() = ['\n' | '\r']*
     /// Parses whitespace or newlines
-    rule ___() = [' ' | '\n' | '\r']*
+    rule ___() = [' ' | '\t' | '\n' | '\r']*
 
     /// Parses a single-line comment
     rule comment()
