@@ -11,7 +11,7 @@ impl Common for Rust {
     fn gen_common(&self, out: &mut String) {
         append!(
             out,
-            "#![allow(non_camel_case_types, unused_imports, clippy::field_reassign_with_default)]\n"
+            "#![allow(dead_code, non_camel_case_types, unused_imports, clippy::field_reassign_with_default)]\n"
         );
         append!(out, "use std::convert::TryFrom;\n");
     }
@@ -684,7 +684,7 @@ mod tests {
         assert_eq!(
             actual,
             "
-#![allow(non_camel_case_types, unused_imports, clippy::field_reassign_with_default)]
+#![allow(dead_code, non_camel_case_types, unused_imports, clippy::field_reassign_with_default)]
 use std::convert::TryFrom;
 "
         );
