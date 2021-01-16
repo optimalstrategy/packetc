@@ -99,12 +99,13 @@ fn save_one(schema: Schema, lang: Lang, inp: &str, outp: &str) -> Result<()> {
         parent = path
             .strip_prefix(inp)?
             .parent()
-            .unwrap()
-            .to_str()
-            .map_or_else(String::new, |v| if v.is_empty() {
-                String::new()
-            } else {
-                format!("{}/", v)
+            .map_or_else(String::new, |v| {
+                let parent = v.to_str();
+                if parent.is_some() && !parent.unwrap().is_empty() {
+                    format!("{}/", parent.unwrap())
+                } else {
+                    String::new()
+                }
             })
     )
     .chars()
