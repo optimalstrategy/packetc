@@ -90,37 +90,46 @@ fn run_all(dir: String, lang: Lang) -> Result<Vec<Schema>> {
     Ok(out)
 }
 
-fn save_one(schema: Schema, lang: Lang, inp: &str, outp: &str) -> Result<()> {
+fn save_one(schema: Schema, lang: Lang, inp: &str, outp: &str, to_dir: bool) -> Result<()> {
     let path = schema.path.clone();
 
-    let full_out_path = format!(
-        "{outp}/{parent}",
-        outp = outp,
-        parent = path
-            .strip_prefix(inp)?
-            .parent()
-            .map_or_else(String::new, |v| {
-                let parent = v.to_str();
-                if parent.is_some() && !parent.unwrap().is_empty() {
-                    format!("{}/", parent.unwrap())
-                } else {
-                    String::new()
-                }
-            })
-    )
-    .chars()
-    // also transform path separators
-    .map(|c| if c == '\\' { '/' } else { c })
-    .collect::<String>();
+    let out = if to_dir {
+        let full_out_path = format!(
+            "{outp}/{parent}",
+            outp = outp,
+            parent = path
+                .strip_prefix(inp)?
+                .parent()
+                .map_or_else(String::new, |v| {
+                    let parent = v.to_str();
+                    if parent.is_some() && !parent.unwrap().is_empty() {
+                        format!("{}/", parent.unwrap())
+                    } else {
+                        String::new()
+                    }
+                })
+        )
+        .chars()
+        // also transform path separators
+        .map(|c| if c == '\\' { '/' } else { c })
+        .collect::<String>();
 
-    fs::create_dir_all(&full_out_path)?;
+        fs::create_dir_all(&full_out_path)?;
 
-    let out = format!(
-        "{dir}{filename}.{ext}",
-        dir = full_out_path,
-        filename = schema.path.file_stem().unwrap().to_str().unwrap(),
-        ext = extension(lang)
-    );
+        format!(
+            "{dir}{filename}.{ext}",
+            dir = full_out_path,
+            filename = schema.path.file_stem().unwrap().to_str().unwrap(),
+            ext = extension(lang)
+        )
+    } else {
+        format!(
+            "{filename}.{ext}",
+            filename = schema.path.file_stem().unwrap().to_str().unwrap(),
+            ext = extension(lang)
+        )
+    };
+
     println!("Writing to {}", out);
     fs::write(out, schema.generated)?;
 
@@ -133,11 +142,11 @@ fn main() -> Result<()> {
         if meta.is_dir() {
             let results = run_all(opts.path.clone(), opts.lang)?;
             for result in results {
-                save_one(result, opts.lang, &opts.path, &opts.out)?;
+                save_one(result, opts.lang, &opts.path, &opts.out, true)?;
             }
         } else {
             let result = run_one(opts.path.clone(), opts.lang)?;
-            save_one(result, opts.lang, &opts.path, &opts.out)?;
+            save_one(result, opts.lang, &opts.path, &opts.out, false)?;
         }
     }
 
