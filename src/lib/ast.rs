@@ -6,22 +6,23 @@
 ///
 /// (identifier, is_array)
 #[derive(Clone, PartialEq, Debug)]
-pub struct Unresolved(pub String, pub bool);
+pub struct Unresolved<'a>(pub &'a str, pub bool);
 /// Enum is just a list of its variants, which are plain strings
 #[derive(Clone, PartialEq, Debug)]
-pub struct Enum(pub Vec<String>);
+pub struct Enum<'a>(pub Vec<&'a str>);
 /// Struct is a list of pairs of `identifier:type`, where `type` may be an array
 #[derive(Clone, PartialEq, Debug)]
-pub struct Struct(pub Vec<(String, Unresolved)>);
+pub struct Struct<'a>(pub Vec<(&'a str, Unresolved<'a>)>);
+
 #[derive(Clone, PartialEq, Debug)]
-pub enum Type {
-    Enum(Enum),
-    Struct(Struct),
+pub enum Type<'a> {
+    Enum(Enum<'a>),
+    Struct(Struct<'a>),
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum Node {
-    Decl(String, Type),
-    Export(String),
+pub enum Node<'a> {
+    Decl(&'a str, Type<'a>),
+    Export(&'a str),
 }
-pub type AST = Vec<Node>;
+pub type AST<'a> = Vec<Node<'a>>;

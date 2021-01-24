@@ -8,11 +8,11 @@ use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
 
 // TODO: real error type + report in a nice way
 
-fn get_export(ast: &[ast::Node]) -> Result<String, String> {
+fn get_export<'a>(ast: &[ast::Node<'a>]) -> Result<&'a str, String> {
     let mut export = None;
     for node in ast {
         match node {
-            ast::Node::Export(n) if export.is_none() => export = Some(n.clone()),
+            ast::Node::Export(n) if export.is_none() => export = Some(n),
             ast::Node::Export(_) => return Err("Schema has more than one export".to_string()),
             _ => (),
         }
@@ -23,7 +23,7 @@ fn get_export(ast: &[ast::Node]) -> Result<String, String> {
     }
 }
 
-fn collect_types(ast: &[ast::Node]) -> Result<HashMap<String, ast::Type>, String> {
+fn collect_types<'a>(ast: &[ast::Node<'a>]) -> Result<HashMap<&'a str, ast::Type<'a>>, String> {
     let mut cache = HashMap::new();
 
     for node in ast {
@@ -51,8 +51,8 @@ pub enum Builtin {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct EnumVariant {
-    pub name: String,
+pub struct EnumVariant<'a> {
+    pub name: &'a str,
     pub value: usize,
 }
 #[derive(Clone, PartialEq, Debug)]
@@ -71,27 +71,36 @@ impl Display for EnumRepr {
     }
 }
 #[derive(Clone, PartialEq, Debug)]
-pub struct Enum {
+pub struct Enum<'a> {
     pub repr: EnumRepr,
-    pub variants: Vec<EnumVariant>,
+    pub variants: Vec<EnumVariant<'a>>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct StructField {
-    pub name: String,
-    pub r#type: Ptr<(String, ResolvedType)>,
+pub struct StructField<'a> {
+    pub name: &'a str,
+    pub r#type: Ptr<(&'a str, ResolvedType<'a>)>,
     pub array: bool,
 }
 #[derive(Clone, PartialEq, Debug)]
-pub struct Struct {
-    pub fields: Vec<StructField>,
+pub struct Struct<'a> {
+    pub fields: Vec<StructField<'a>>,
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub enum ResolvedType {
+pub enum ResolvedType<'a> {
     Builtin(Builtin),
-    Enum(Enum),
-    Struct(Struct),
+    Enum(Enum<'a>),
+    Struct(Struct<'a>),
+}
+
+impl<'a> ResolvedType<'a> {
+    fn get_struct_variant(&self) -> Option<Struct<'a>> {
+        match self {
+            ResolvedType::Struct(s) => Some(s.clone()),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -112,55 +121,55 @@ impl<T> std::ops::Deref for Ptr<T> {
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Export {
-    pub name: String,
-    pub r#struct: Struct,
+pub struct Export<'a> {
+    pub name: &'a str,
+    pub r#struct: Struct<'a>,
 }
 
-fn get_builtins() -> HashMap<String, Ptr<(String, ResolvedType)>> {
+fn get_builtins<'a>() -> HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>> {
     vec![
         (
-            "uint8".to_string(),
-            Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+            "uint8",
+            Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
         ),
         (
-            "uint16".to_string(),
-            Ptr::new(("uint16".to_string(), ResolvedType::Builtin(Builtin::Uint16))),
+            "uint16",
+            Ptr::new(("uint16", ResolvedType::Builtin(Builtin::Uint16))),
         ),
         (
-            "uint32".to_string(),
-            Ptr::new(("uint32".to_string(), ResolvedType::Builtin(Builtin::Uint32))),
+            "uint32",
+            Ptr::new(("uint32", ResolvedType::Builtin(Builtin::Uint32))),
         ),
         (
-            "int8".to_string(),
-            Ptr::new(("int8".to_string(), ResolvedType::Builtin(Builtin::Int8))),
+            "int8",
+            Ptr::new(("int8", ResolvedType::Builtin(Builtin::Int8))),
         ),
         (
-            "int16".to_string(),
-            Ptr::new(("int16".to_string(), ResolvedType::Builtin(Builtin::Int16))),
+            "int16",
+            Ptr::new(("int16", ResolvedType::Builtin(Builtin::Int16))),
         ),
         (
-            "int32".to_string(),
-            Ptr::new(("int32".to_string(), ResolvedType::Builtin(Builtin::Int32))),
+            "int32",
+            Ptr::new(("int32", ResolvedType::Builtin(Builtin::Int32))),
         ),
         (
-            "float".to_string(),
-            Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+            "float",
+            Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
         ),
         (
-            "string".to_string(),
-            Ptr::new(("string".to_string(), ResolvedType::Builtin(Builtin::String))),
+            "string",
+            Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
         ),
     ]
     .into_iter()
     .collect()
 }
 
-fn resolve_struct_field(
-    fname: String,
-    fty: ast::Unresolved,
-    resolved: &HashMap<String, Ptr<(String, ResolvedType)>>,
-) -> Option<StructField> {
+fn resolve_struct_field<'a>(
+    fname: &'a str,
+    fty: ast::Unresolved<'a>,
+    resolved: &HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+) -> Option<StructField<'a>> {
     match resolved.get(&fty.0) {
         Some(rty) => Some(StructField {
             name: fname,
@@ -171,7 +180,10 @@ fn resolve_struct_field(
     }
 }
 
-fn resolve_enum(name: &str, ty: ast::Enum) -> Result<(EnumRepr, Vec<EnumVariant>), String> {
+fn resolve_enum<'a>(
+    name: &'a str,
+    ty: ast::Enum<'a>,
+) -> Result<(EnumRepr, Vec<EnumVariant<'a>>), String> {
     // find the smallest possible representation for this enum
     let repr = match ty.0.len() {
         n if n == 0 => return Err(format!("Enum '{}' must have at least one variant", name)),
@@ -203,12 +215,12 @@ fn resolve_enum(name: &str, ty: ast::Enum) -> Result<(EnumRepr, Vec<EnumVariant>
     Ok((repr, variants))
 }
 
-fn resolve_one_first_pass(
-    name: String,
-    ty: ast::Type,
-    builtins: &HashMap<String, Ptr<(String, ResolvedType)>>,
-    first_pass: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
-    unresolved: &mut HashMap<String, ast::Type>,
+fn resolve_one_first_pass<'a>(
+    name: &'a str,
+    ty: ast::Type<'a>,
+    builtins: &HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+    first_pass: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+    unresolved: &mut HashMap<&'a str, ast::Type<'a>>,
 ) -> Result<(), String> {
     match ty {
         ast::Type::Enum(e) => {
@@ -256,11 +268,11 @@ fn resolve_one_first_pass(
 }
 
 // This should consume the AST and return a type-checked version
-fn resolve_first_pass(
-    ast: ast::AST,
-    builtins: &HashMap<String, Ptr<(String, ResolvedType)>>,
-    first_pass: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
-    unresolved: &mut HashMap<String, ast::Type>,
+fn resolve_first_pass<'a>(
+    ast: ast::AST<'a>,
+    builtins: &HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+    first_pass: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+    unresolved: &mut HashMap<&'a str, ast::Type<'a>>,
 ) -> Result<(), String> {
     for node in ast {
         if let ast::Node::Decl(name, ty) = node {
@@ -272,12 +284,12 @@ fn resolve_first_pass(
     Ok(())
 }
 
-fn resolve_one_second_pass(
-    name: String,
-    ty: ast::Type,
-    cache: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
-    visited: &mut HashSet<String>,
-    unresolved: &mut HashMap<String, ast::Type>,
+fn resolve_one_second_pass<'a>(
+    name: &'a str,
+    ty: ast::Type<'a>,
+    cache: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+    visited: &mut HashSet<&'a str>,
+    unresolved: &mut HashMap<&'a str, ast::Type<'a>>,
 ) -> Result<(), String> {
     // if it's already resolved, dont resolve again
     if cache.contains_key(&name) {
@@ -361,9 +373,9 @@ fn resolve_one_second_pass(
     Ok(())
 }
 
-fn resolve_second_pass(
-    cache: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
-    mut unresolved: HashMap<String, ast::Type>,
+fn resolve_second_pass<'a>(
+    cache: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+    mut unresolved: HashMap<&'a str, ast::Type<'a>>,
 ) -> Result<(), String> {
     let mut visited = HashSet::new();
     for (name, ty) in unresolved.clone() {
@@ -374,55 +386,33 @@ fn resolve_second_pass(
     Ok(())
 }
 
-fn is_struct_variant(ty: &ResolvedType) -> bool {
-    std::mem::discriminant(ty)
-        == std::mem::discriminant(&ResolvedType::Struct(Struct { fields: Vec::new() }))
-}
-
-fn get_struct_variant(ty: &ResolvedType) -> Struct {
-    match ty {
-        ResolvedType::Struct(s) => s.clone(),
-        _ => panic!("ResolvedType is not struct"),
-    }
-}
-
-fn collect_used_types(visited: &mut HashSet<String>, ty: &(String, ResolvedType)) {
+fn collect_used_types<'a>(visited: &mut HashSet<&'a str>, ty: &(&'a str, ResolvedType<'a>)) {
     visited.insert(ty.0.clone());
-    if is_struct_variant(&ty.1) {
-        let ty = get_struct_variant(&ty.1);
+    if let Some(ty) = ty.1.get_struct_variant() {
         for field in ty.fields.iter() {
-            collect_used_types(visited, &(*field.r#type.borrow()));
+            collect_used_types(visited, &*field.r#type.borrow());
         }
     }
 }
 
-fn remove_unused(
-    visited: HashSet<String>,
-    resolved: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
+fn remove_unused<'a>(
+    visited: HashSet<&'a str>,
+    resolved: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType)>>,
 ) {
     // TODO: print a warning (if configured) for each unused type
-    for name in resolved
-        .iter()
-        .map(|t| t.0.clone())
-        .collect::<Vec<String>>()
-    {
-        if !visited.contains(&name) {
-            resolved.remove(&name);
-        }
-    }
+    resolved.retain(|name, _| visited.contains(name));
 }
 
-fn resolve_export(
-    name: String,
-    resolved: &mut HashMap<String, Ptr<(String, ResolvedType)>>,
-) -> Result<Export, String> {
-    if let Some(export) = resolved.get(&name) {
-        if is_struct_variant(&(*export.borrow()).1) {
+fn resolve_export<'a>(
+    name: &'a str,
+    resolved: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
+) -> Result<Export<'a>, String> {
+    if let Some(export) = resolved.get(&name).cloned() {
+        if let Some(ty) = export.borrow().1.get_struct_variant() {
             // Use this opportunity to discard unused types.
-            let mut visited = vec![name.clone()].into_iter().collect::<HashSet<String>>();
-            let ty = get_struct_variant(&(*export.borrow()).1);
+            let mut visited = [name].iter().copied().collect();
             for field in ty.fields.iter() {
-                collect_used_types(&mut visited, &(*field.r#type.borrow()));
+                collect_used_types(&mut visited, &*field.r#type.borrow());
             }
             remove_unused(visited, resolved);
 
@@ -439,12 +429,12 @@ fn resolve_export(
 }
 
 #[derive(Clone, PartialEq, Debug)]
-pub struct Resolved {
-    pub export: Export,
-    pub types: HashMap<String, Ptr<(String, ResolvedType)>>,
+pub struct Resolved<'a> {
+    pub export: Export<'a>,
+    pub types: HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
 }
 
-pub fn type_check(ast: ast::AST) -> Result<Resolved, String> {
+pub fn type_check<'a>(ast: ast::AST<'a>) -> Result<Resolved<'a>, String> {
     let export = match get_export(&ast) {
         Ok(e) => e,
         Err(e) => return Err(e),
@@ -491,36 +481,33 @@ mod tests {
         // check if a valid AST containing all language features passes the type check
         use ast::*;
         let test: AST = vec![
+            Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
             Node::Decl(
-                "Flag".to_string(),
-                Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
-            ),
-            Node::Decl(
-                "Position".to_string(),
+                "Position",
                 Type::Struct(Struct(vec![
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
-                    ("y".to_string(), Unresolved("float".to_string(), false)),
+                    ("x", Unresolved("float", false)),
+                    ("y", Unresolved("float", false)),
                 ])),
             ),
             Node::Decl(
-                "Value".to_string(),
+                "Value",
                 Type::Struct(Struct(vec![
-                    ("a".to_string(), Unresolved("uint32".to_string(), false)),
-                    ("b".to_string(), Unresolved("int32".to_string(), false)),
-                    ("c".to_string(), Unresolved("uint8".to_string(), false)),
-                    ("d".to_string(), Unresolved("uint8".to_string(), false)),
+                    ("a", Unresolved("uint32", false)),
+                    ("b", Unresolved("int32", false)),
+                    ("c", Unresolved("uint8", false)),
+                    ("d", Unresolved("uint8", false)),
                 ])),
             ),
             Node::Decl(
-                "ComplexType".to_string(),
+                "ComplexType",
                 Type::Struct(Struct(vec![
-                    ("flag".to_string(), Unresolved("Flag".to_string(), false)),
-                    ("pos".to_string(), Unresolved("Position".to_string(), false)),
-                    ("names".to_string(), Unresolved("string".to_string(), true)),
-                    ("values".to_string(), Unresolved("Value".to_string(), true)),
+                    ("flag", Unresolved("Flag", false)),
+                    ("pos", Unresolved("Position", false)),
+                    ("names", Unresolved("string", true)),
+                    ("values", Unresolved("Value", true)),
                 ])),
             ),
-            Node::Export("ComplexType".to_string()),
+            Node::Export("ComplexType"),
         ];
         // TODO: check equality of Resolved AST instead of checking if this is an error
         // Rc<T> == Rc<T> if T == T, according to https://doc.rust-lang.org/src/alloc/rc.rs.html#1325
@@ -532,19 +519,16 @@ mod tests {
         // an enum must have at least one variant
         use ast::*;
         let test: AST = vec![
-            Node::Decl("Flag".to_string(), Type::Enum(Enum(vec![]))),
+            Node::Decl("Flag", Type::Enum(Enum(vec![]))),
             Node::Decl(
-                "Test".to_string(),
-                Type::Struct(Struct(vec![(
-                    "flag".to_string(),
-                    Unresolved("Flag".to_string(), false),
-                )])),
+                "Test",
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
             ),
-            Node::Export("Test".to_string()),
+            Node::Export("Test"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Enum 'Flag' must have at least one variant".to_string()
+            "Enum 'Flag' must have at least one variant"
         );
     }
 
@@ -554,18 +538,18 @@ mod tests {
         use ast::*;
         let test: AST = vec![
             Node::Decl(
-                "Position".to_string(),
+                "Position",
                 Type::Struct(Struct(vec![
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
-                    ("y".to_string(), Unresolved("float".to_string(), false)),
+                    ("x", Unresolved("float", false)),
+                    ("y", Unresolved("float", false)),
                 ])),
             ),
-            Node::Export("Position".to_string()),
-            Node::Export("Position".to_string()),
+            Node::Export("Position"),
+            Node::Export("Position"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Schema has more than one export".to_string()
+            "Schema has more than one export"
         );
     }
 
@@ -574,38 +558,29 @@ mod tests {
         // a schema file must export something
         use ast::*;
         let test: AST = vec![Node::Decl(
-            "Position".to_string(),
+            "Position",
             Type::Struct(Struct(vec![
-                ("x".to_string(), Unresolved("float".to_string(), false)),
-                ("y".to_string(), Unresolved("float".to_string(), false)),
+                ("x", Unresolved("float", false)),
+                ("y", Unresolved("float", false)),
             ])),
         )];
-        assert_eq!(
-            type_check(test).unwrap_err(),
-            "Schema has no export".to_string()
-        );
+        assert_eq!(type_check(test).unwrap_err(), "Schema has no export");
     }
 
     #[test]
     fn duplicate_enum_variants() {
         use ast::*;
         let test: AST = vec![
+            Node::Decl("Flag", Type::Enum(Enum(vec!["A", "A"]))),
             Node::Decl(
-                "Flag".to_string(),
-                Type::Enum(Enum(vec!["A".to_string(), "A".to_string()])),
+                "Test",
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
             ),
-            Node::Decl(
-                "Test".to_string(),
-                Type::Struct(Struct(vec![(
-                    "flag".to_string(),
-                    Unresolved("Flag".to_string(), false),
-                )])),
-            ),
-            Node::Export("Test".to_string()),
+            Node::Export("Test"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Duplicate variant 'A' on enum 'Flag'".to_string()
+            "Duplicate variant 'A' on enum 'Flag'"
         );
     }
 
@@ -615,17 +590,17 @@ mod tests {
         use ast::*;
         let test: AST = vec![
             Node::Decl(
-                "Position".to_string(),
+                "Position",
                 Type::Struct(Struct(vec![
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
+                    ("x", Unresolved("float", false)),
+                    ("x", Unresolved("float", false)),
                 ])),
             ),
-            Node::Export("Position".to_string()),
+            Node::Export("Position"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Duplicate field 'x' on struct 'Position'".to_string()
+            "Duplicate field 'x' on struct 'Position'"
         );
     }
 
@@ -635,20 +610,20 @@ mod tests {
         use ast::*;
         let test: AST = vec![
             Node::Decl(
-                "Position".to_string(),
+                "Position",
                 Type::Struct(Struct(vec![
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
-                    ("y".to_string(), Unresolved("float".to_string(), false)),
+                    ("x", Unresolved("float", false)),
+                    ("y", Unresolved("float", false)),
                 ])),
             ),
             Node::Decl(
-                "Position".to_string(),
+                "Position",
                 Type::Struct(Struct(vec![
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
-                    ("y".to_string(), Unresolved("float".to_string(), false)),
+                    ("x", Unresolved("float", false)),
+                    ("y", Unresolved("float", false)),
                 ])),
             ),
-            Node::Export("Position".to_string()),
+            Node::Export("Position"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
@@ -664,52 +639,20 @@ mod tests {
         use ast::*;
         let test: AST = vec![
             Node::Decl(
-                "Flag".to_string(),
+                "Flag",
                 Type::Enum(Enum(vec![
-                    "A0".to_string(),
-                    "A1".to_string(),
-                    "A2".to_string(),
-                    "A3".to_string(),
-                    "A4".to_string(),
-                    "A5".to_string(),
-                    "A6".to_string(),
-                    "A7".to_string(),
-                    "A8".to_string(),
-                    "A9".to_string(),
-                    "A10".to_string(),
-                    "A11".to_string(),
-                    "A12".to_string(),
-                    "A13".to_string(),
-                    "A14".to_string(),
-                    "A15".to_string(),
-                    "A16".to_string(),
-                    "A17".to_string(),
-                    "A18".to_string(),
-                    "A19".to_string(),
-                    "A20".to_string(),
-                    "A21".to_string(),
-                    "A22".to_string(),
-                    "A23".to_string(),
-                    "A24".to_string(),
-                    "A25".to_string(),
-                    "A26".to_string(),
-                    "A27".to_string(),
-                    "A28".to_string(),
-                    "A29".to_string(),
-                    "A30".to_string(),
-                    "A31".to_string(),
+                    "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11",
+                    "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22",
+                    "A23", "A24", "A25", "A26", "A27", "A28", "A29", "A30", "A31",
                     // one too many
-                    "A32".to_string(),
+                    "A32",
                 ])),
             ),
             Node::Decl(
-                "Test".to_string(),
-                Type::Struct(Struct(vec![(
-                    "flag".to_string(),
-                    Unresolved("Flag".to_string(), false),
-                )])),
+                "Test",
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
             ),
-            Node::Export("Test".to_string()),
+            Node::Export("Test"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
@@ -724,17 +667,14 @@ mod tests {
         use ast::*;
         let test: AST = vec![
             Node::Decl(
-                "Test".to_string(),
-                Type::Struct(Struct(vec![(
-                    "flag".to_string(),
-                    Unresolved("Flag".to_string(), false),
-                )])),
+                "Test",
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
             ),
-            Node::Export("Test".to_string()),
+            Node::Export("Test"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Declaration for type 'Flag' does not exist".to_string()
+            "Declaration for type 'Flag' does not exist"
         );
     }
 
@@ -746,24 +686,15 @@ mod tests {
             use ast::*;
             vec![
                 Node::Decl(
-                    "UnusedType".to_string(),
-                    Type::Struct(Struct(vec![(
-                        "test".to_string(),
-                        Unresolved("uint8".to_string(), false),
-                    )])),
+                    "UnusedType",
+                    Type::Struct(Struct(vec![("test", Unresolved("uint8", false))])),
                 ),
+                Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
                 Node::Decl(
-                    "Flag".to_string(),
-                    Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
+                    "Test",
+                    Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
                 ),
-                Node::Decl(
-                    "Test".to_string(),
-                    Type::Struct(Struct(vec![(
-                        "flag".to_string(),
-                        Unresolved("Flag".to_string(), false),
-                    )])),
-                ),
-                Node::Export("Test".to_string()),
+                Node::Export("Test"),
             ]
         };
         let checked = type_check(test).unwrap();
@@ -775,32 +706,20 @@ mod tests {
         // the type that's being resolved is too deeply nested
         use ast::*;
         let test: AST = vec![
+            Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
             Node::Decl(
-                "Flag".to_string(),
-                Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
+                "TestA",
+                Type::Struct(Struct(vec![("test", Unresolved("Flag", false))])),
             ),
             Node::Decl(
-                "TestA".to_string(),
-                Type::Struct(Struct(vec![(
-                    "test".to_string(),
-                    Unresolved("Flag".to_string(), false),
-                )])),
+                "TestB",
+                Type::Struct(Struct(vec![("test", Unresolved("TestA", false))])),
             ),
             Node::Decl(
-                "TestB".to_string(),
-                Type::Struct(Struct(vec![(
-                    "test".to_string(),
-                    Unresolved("TestA".to_string(), false),
-                )])),
+                "TestC",
+                Type::Struct(Struct(vec![("test", Unresolved("TestB", false))])),
             ),
-            Node::Decl(
-                "TestC".to_string(),
-                Type::Struct(Struct(vec![(
-                    "test".to_string(),
-                    Unresolved("TestB".to_string(), false),
-                )])),
-            ),
-            Node::Export("TestC".to_string()),
+            Node::Export("TestC"),
         ];
         type_check(test).unwrap();
     }
@@ -811,18 +730,15 @@ mod tests {
         use ast::*;
         let test: AST = vec![
             Node::Decl(
-                "Test".to_string(),
-                Type::Struct(Struct(vec![(
-                    "test".to_string(),
-                    Unresolved("Test".to_string(), false),
-                )])),
+                "Test",
+                Type::Struct(Struct(vec![("test", Unresolved("Test", false))])),
             ),
-            Node::Export("Test".to_string()),
+            Node::Export("Test"),
         ];
         let actual = type_check(test);
         assert_eq!(
             actual.unwrap_err(),
-            "Found a cycle between two or more top level definitions in type 'Test'".to_string()
+            "Found a cycle between two or more top level definitions in type 'Test'"
         );
     }
 
@@ -830,10 +746,10 @@ mod tests {
     fn could_not_resolve_export() {
         // the type does not exist
         use ast::*;
-        let test: AST = vec![Node::Export("Test".to_string())];
+        let test: AST = vec![Node::Export("Test")];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Export 'Test' could not be resolved".to_string()
+            "Export 'Test' could not be resolved"
         );
     }
 
@@ -842,15 +758,12 @@ mod tests {
         // only structs may be exported
         use ast::*;
         let test: AST = vec![
-            Node::Decl(
-                "Flag".to_string(),
-                Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
-            ),
-            Node::Export("Flag".to_string()),
+            Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
+            Node::Export("Flag"),
         ];
         assert_eq!(
             type_check(test).unwrap_err(),
-            "Attempted to export 'Flag', which is not a struct".to_string()
+            "Attempted to export 'Flag', which is not a struct"
         );
     }
 }

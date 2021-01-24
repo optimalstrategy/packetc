@@ -26,14 +26,18 @@ struct ImplCtx<'a> {
 impl<'a> ImplCtx<'a> {
     fn new(out: &'a mut String) -> ImplCtx {
         ImplCtx {
-            indentation: "".to_string(),
+            indentation: String::new(),
             out,
             stack: Vec::new(),
         }
     }
+
+    #[inline]
     fn push_indent(&mut self) {
         self.indentation += "    ";
     }
+
+    #[inline]
     fn pop_indent(&mut self) {
         self.indentation.truncate(if self.indentation.len() < 4 {
             0
@@ -41,12 +45,18 @@ impl<'a> ImplCtx<'a> {
             self.indentation.len() - 4
         });
     }
-    fn push_fname(&mut self, name: String) {
-        self.stack.push(name);
+
+    #[inline]
+    fn push_fname<S: Into<String>>(&mut self, name: S) {
+        self.stack.push(name.into());
     }
+
+    #[inline]
     fn pop_fname(&mut self) {
         self.stack.pop();
     }
+
+    #[inline]
     fn swap_stack(&mut self, other: &mut Vec<String>) {
         std::mem::swap(&mut self.stack, other);
     }
@@ -274,10 +284,10 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
     }
 }
 
-impl WriteImpl<TypeScript> for check::Export {
-    fn gen_write_impl(&self, _: &mut TypeScript, name: String, out: &mut String) {
+impl<'a> WriteImpl<TypeScript> for check::Export<'a> {
+    fn gen_write_impl(&self, _: &mut TypeScript, name: &str, out: &mut String) {
         let mut ctx = ImplCtx::new(out);
-        ctx.push_fname("input".to_string());
+        ctx.push_fname("input");
         append!(
             ctx.out,
             "export function write(writer: Writer, input: {}) {{\n",
@@ -558,10 +568,10 @@ fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
     }
 }
 
-impl ReadImpl<TypeScript> for check::Export {
-    fn gen_read_impl(&self, _: &mut TypeScript, name: String, out: &mut String) {
+impl<'a> ReadImpl<TypeScript> for check::Export<'a> {
+    fn gen_read_impl(&self, _: &mut TypeScript, name: &str, out: &mut String) {
         let mut ctx = ImplCtx::new(out);
-        ctx.push_fname("output".to_string());
+        ctx.push_fname("output");
         append!(
             ctx.out,
             "export function read(reader: Reader, output: {}) {{\n",
@@ -574,8 +584,8 @@ impl ReadImpl<TypeScript> for check::Export {
     }
 }
 
-impl Definition<TypeScript> for check::Struct {
-    fn gen_def(&self, _: &mut TypeScript, name: String, out: &mut String) {
+impl<'a> Definition<TypeScript> for check::Struct<'a> {
+    fn gen_def(&self, _: &mut TypeScript, name: &str, out: &mut String) {
         append!(out, "export interface {} {{\n", name);
         for field in self.fields.iter() {
             let type_info = &*field.r#type.borrow();
@@ -596,8 +606,8 @@ impl Definition<TypeScript> for check::Struct {
     }
 }
 
-fn gen_def_enum_tryfrom_impl(name: String, ty: &check::Enum, out: &mut String) {
-    let mut indent = "".to_string();
+fn gen_def_enum_tryfrom_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut String) {
+    let mut indent = String::new();
     append!(
         out,
         "{}function {}_try_from(value: number): {} {{\n",
@@ -627,8 +637,8 @@ fn gen_def_enum_tryfrom_impl(name: String, ty: &check::Enum, out: &mut String) {
     append!(out, "}}\n");
 }
 
-impl Definition<TypeScript> for check::Enum {
-    fn gen_def(&self, _: &mut TypeScript, name: String, out: &mut String) {
+impl<'a> Definition<TypeScript> for check::Enum<'a> {
+    fn gen_def(&self, _: &mut TypeScript, name: &str, out: &mut String) {
         append!(out, "export const enum {} {{\n", name);
         for variant in self.variants.iter() {
             append!(out, "    {} = 1 << {},\n", variant.name, variant.value);
@@ -662,20 +672,20 @@ import { Reader, Writer } from \"packet\";
         let position = Struct {
             fields: vec![
                 StructField {
-                    name: "x".to_string(),
-                    r#type: Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+                    name: "x",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
                 },
                 StructField {
-                    name: "y".to_string(),
-                    r#type: Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+                    name: "y",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
                 },
             ],
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_def("Position".to_string(), &position);
+        gen.push_def("Position", &position);
         let actual = gen.finish();
         assert_eq!(
             actual,
@@ -695,18 +705,18 @@ export interface Position {
             repr: EnumRepr::U8,
             variants: vec![
                 EnumVariant {
-                    name: "A".to_string(),
+                    name: "A",
                     value: 0,
                 },
                 EnumVariant {
-                    name: "B".to_string(),
+                    name: "B",
                     value: 1,
                 },
             ],
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_def("Flag".to_string(), &flag);
+        gen.push_def("Flag", &flag);
         let actual = gen.finish();
         assert_eq!(
             actual,
@@ -727,45 +737,33 @@ function Flag_try_from(value: number): Flag {
     fn complex_struct_gen() {
         use check::*;
         let test = Export {
-            name: "Test".to_string(),
+            name: "Test",
             r#struct: Struct {
                 fields: vec![
                     StructField {
-                        name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "uint8".to_string(),
-                            ResolvedType::Builtin(Builtin::Uint8),
-                        )),
+                        name: "builtin_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
                     },
                     StructField {
-                        name: "builtin_array".to_string(),
-                        r#type: Ptr::new((
-                            "uint8".to_string(),
-                            ResolvedType::Builtin(Builtin::Uint8),
-                        )),
+                        name: "builtin_array",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: true,
                     },
                     StructField {
-                        name: "string_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "string".to_string(),
-                            ResolvedType::Builtin(Builtin::String),
-                        )),
+                        name: "string_scalar",
+                        r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: false,
                     },
                     StructField {
-                        name: "string_array".to_string(),
-                        r#type: Ptr::new((
-                            "string".to_string(),
-                            ResolvedType::Builtin(Builtin::String),
-                        )),
+                        name: "string_array",
+                        r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: true,
                     },
                     StructField {
-                        name: "enum_scalar".to_string(),
+                        name: "enum_scalar",
                         r#type: Ptr::new((
-                            "Flag".to_string(),
+                            "Flag",
                             ResolvedType::Enum(Enum {
                                 repr: EnumRepr::U8,
                                 variants: vec![],
@@ -774,9 +772,9 @@ function Flag_try_from(value: number): Flag {
                         array: false,
                     },
                     StructField {
-                        name: "enum_array".to_string(),
+                        name: "enum_array",
                         r#type: Ptr::new((
-                            "Flag".to_string(),
+                            "Flag",
                             ResolvedType::Enum(Enum {
                                 repr: EnumRepr::U8,
                                 variants: vec![],
@@ -785,17 +783,17 @@ function Flag_try_from(value: number): Flag {
                         array: true,
                     },
                     StructField {
-                        name: "struct_scalar".to_string(),
+                        name: "struct_scalar",
                         r#type: Ptr::new((
-                            "Position".to_string(),
+                            "Position",
                             ResolvedType::Struct(Struct { fields: vec![] }),
                         )),
                         array: false,
                     },
                     StructField {
-                        name: "struct_array".to_string(),
+                        name: "struct_array",
                         r#type: Ptr::new((
-                            "Position".to_string(),
+                            "Position",
                             ResolvedType::Struct(Struct { fields: vec![] }),
                         )),
                         array: true,
@@ -805,7 +803,7 @@ function Flag_try_from(value: number): Flag {
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_def("Test".to_string(), &test.r#struct);
+        gen.push_def("Test", &test.r#struct);
         let actual = gen.finish();
         assert_eq!(
             actual,
@@ -830,30 +828,30 @@ export interface Test {
         let test_a = Struct {
             fields: vec![
                 StructField {
-                    name: "first".to_string(),
-                    r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                    name: "first",
+                    r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
                 },
                 StructField {
-                    name: "second".to_string(),
-                    r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                    name: "second",
+                    r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
                 },
             ],
         };
         let test_b = Export {
-            name: "TestB".to_string(),
+            name: "TestB",
             r#struct: Struct {
                 fields: vec![StructField {
-                    name: "test_a".to_string(),
-                    r#type: Ptr::new(("TestA".to_string(), ResolvedType::Struct(test_a))),
+                    name: "test_a",
+                    r#type: Ptr::new(("TestA", ResolvedType::Struct(test_a))),
                     array: true,
                 }],
             },
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_write_impl("TestB".to_string(), &test_b);
+        gen.push_write_impl("TestB", &test_b);
         let actual = gen.finish();
         assert_eq!(
             actual,
@@ -881,30 +879,30 @@ export function write(writer: Writer, input: TestB) {
         let test_a = Struct {
             fields: vec![
                 StructField {
-                    name: "first".to_string(),
-                    r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                    name: "first",
+                    r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
                 },
                 StructField {
-                    name: "second".to_string(),
-                    r#type: Ptr::new(("uint8".to_string(), ResolvedType::Builtin(Builtin::Uint8))),
+                    name: "second",
+                    r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
                 },
             ],
         };
         let test_b = Export {
-            name: "TestB".to_string(),
+            name: "TestB",
             r#struct: Struct {
                 fields: vec![StructField {
-                    name: "test_a".to_string(),
-                    r#type: Ptr::new(("TestA".to_string(), ResolvedType::Struct(test_a))),
+                    name: "test_a",
+                    r#type: Ptr::new(("TestA", ResolvedType::Struct(test_a))),
                     array: true,
                 }],
             },
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_read_impl("TestB".to_string(), &test_b);
+        gen.push_read_impl("TestB", &test_b);
         let actual = gen.finish();
         assert_eq!(
             actual,
@@ -938,11 +936,11 @@ export function read(reader: Reader, output: TestB) {
             repr: EnumRepr::U8,
             variants: vec![
                 EnumVariant {
-                    name: "A".to_string(),
+                    name: "A",
                     value: 0,
                 },
                 EnumVariant {
-                    name: "B".to_string(),
+                    name: "B",
                     value: 1,
                 },
             ],
@@ -950,74 +948,59 @@ export function read(reader: Reader, output: TestB) {
         let position = Struct {
             fields: vec![
                 StructField {
-                    name: "x".to_string(),
-                    r#type: Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+                    name: "x",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
                 },
                 StructField {
-                    name: "y".to_string(),
-                    r#type: Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+                    name: "y",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
                 },
             ],
         };
         let test = Export {
-            name: "Test".to_string(),
+            name: "Test",
             r#struct: Struct {
                 fields: vec![
                     StructField {
-                        name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "uint8".to_string(),
-                            ResolvedType::Builtin(Builtin::Uint8),
-                        )),
+                        name: "builtin_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
                     },
                     StructField {
-                        name: "builtin_array".to_string(),
-                        r#type: Ptr::new((
-                            "uint8".to_string(),
-                            ResolvedType::Builtin(Builtin::Uint8),
-                        )),
+                        name: "builtin_array",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: true,
                     },
                     StructField {
-                        name: "string_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "string".to_string(),
-                            ResolvedType::Builtin(Builtin::String),
-                        )),
+                        name: "string_scalar",
+                        r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: false,
                     },
                     StructField {
-                        name: "string_array".to_string(),
-                        r#type: Ptr::new((
-                            "string".to_string(),
-                            ResolvedType::Builtin(Builtin::String),
-                        )),
+                        name: "string_array",
+                        r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: true,
                     },
                     StructField {
-                        name: "enum_scalar".to_string(),
-                        r#type: Ptr::new(("Flag".to_string(), ResolvedType::Enum(flag.clone()))),
+                        name: "enum_scalar",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: false,
                     },
                     StructField {
-                        name: "enum_array".to_string(),
-                        r#type: Ptr::new(("Flag".to_string(), ResolvedType::Enum(flag))),
+                        name: "enum_array",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
                         array: true,
                     },
                     StructField {
-                        name: "struct_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "Position".to_string(),
-                            ResolvedType::Struct(position.clone()),
-                        )),
+                        name: "struct_scalar",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: false,
                     },
                     StructField {
-                        name: "struct_array".to_string(),
-                        r#type: Ptr::new(("Position".to_string(), ResolvedType::Struct(position))),
+                        name: "struct_array",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
                         array: true,
                     },
                 ],
@@ -1025,7 +1008,7 @@ export function read(reader: Reader, output: TestB) {
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_write_impl("Test".to_string(), &test);
+        gen.push_write_impl("Test", &test);
         let actual = gen.finish();
         assert_eq!(
             actual,
@@ -1067,11 +1050,11 @@ export function write(writer: Writer, input: Test) {
             repr: EnumRepr::U8,
             variants: vec![
                 EnumVariant {
-                    name: "A".to_string(),
+                    name: "A",
                     value: 0,
                 },
                 EnumVariant {
-                    name: "B".to_string(),
+                    name: "B",
                     value: 1,
                 },
             ],
@@ -1079,74 +1062,59 @@ export function write(writer: Writer, input: Test) {
         let position = Struct {
             fields: vec![
                 StructField {
-                    name: "x".to_string(),
-                    r#type: Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+                    name: "x",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
                 },
                 StructField {
-                    name: "y".to_string(),
-                    r#type: Ptr::new(("float".to_string(), ResolvedType::Builtin(Builtin::Float))),
+                    name: "y",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
                 },
             ],
         };
         let test = Export {
-            name: "Test".to_string(),
+            name: "Test",
             r#struct: Struct {
                 fields: vec![
                     StructField {
-                        name: "builtin_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "uint8".to_string(),
-                            ResolvedType::Builtin(Builtin::Uint8),
-                        )),
+                        name: "builtin_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
                     },
                     StructField {
-                        name: "builtin_array".to_string(),
-                        r#type: Ptr::new((
-                            "uint8".to_string(),
-                            ResolvedType::Builtin(Builtin::Uint8),
-                        )),
+                        name: "builtin_array",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: true,
                     },
                     StructField {
-                        name: "string_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "string".to_string(),
-                            ResolvedType::Builtin(Builtin::String),
-                        )),
+                        name: "string_scalar",
+                        r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: false,
                     },
                     StructField {
-                        name: "string_array".to_string(),
-                        r#type: Ptr::new((
-                            "string".to_string(),
-                            ResolvedType::Builtin(Builtin::String),
-                        )),
+                        name: "string_array",
+                        r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: true,
                     },
                     StructField {
-                        name: "enum_scalar".to_string(),
-                        r#type: Ptr::new(("Flag".to_string(), ResolvedType::Enum(flag.clone()))),
+                        name: "enum_scalar",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: false,
                     },
                     StructField {
-                        name: "enum_array".to_string(),
-                        r#type: Ptr::new(("Flag".to_string(), ResolvedType::Enum(flag))),
+                        name: "enum_array",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
                         array: true,
                     },
                     StructField {
-                        name: "struct_scalar".to_string(),
-                        r#type: Ptr::new((
-                            "Position".to_string(),
-                            ResolvedType::Struct(position.clone()),
-                        )),
+                        name: "struct_scalar",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: false,
                     },
                     StructField {
-                        name: "struct_array".to_string(),
-                        r#type: Ptr::new(("Position".to_string(), ResolvedType::Struct(position))),
+                        name: "struct_array",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
                         array: true,
                     },
                 ],
@@ -1154,7 +1122,7 @@ export function write(writer: Writer, input: Test) {
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
-        gen.push_read_impl("Test".to_string(), &test);
+        gen.push_read_impl("Test", &test);
         let actual = gen.finish();
         assert_eq!(
             actual,
