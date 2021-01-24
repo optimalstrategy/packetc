@@ -1,11 +1,12 @@
 import random
 import string
+from typing import Set, Tuple
 
-N_LINES = 10
+N_DEFNS = 100
 OUTPUT_FILENAME = "fuzz.pkt"
 SEED = None  # set to a number for a fixed seed
 
-MAX_FILE_SIZE_IN_KB = None  # this assumes that every character is 1b
+MAX_FILE_SIZE_IN_KB = 1024  # this assumes that every character is 1b
 
 MAX_COMMENT_LENGTH = 100
 MAX_IDENTIFIER_LENGTH = 100
@@ -13,16 +14,18 @@ MAX_WHITESPACE_LENGTH = 10
 MAX_WHITESPACE_WITH_LINES_LENGTH = 2
 WHITESPACE_WEIGHTS = [0.7, 0.3]  # space, newline
 
-MAX_DEPTH = 3
-MAX_TUPLE_ELEMENTS = 100
-MAX_ARRAY_DIMENSIONS = 10
+MAX_ENUM_VARIANTS = 32
+MAX_ARRAY_DIMENSIONS = 1
+MAX_STRUCT_FIELDS = 100
+# Use `min(available, MAX_STRUCT_FIELDS)` random types if sampled, all of them otherwise
+STRUCT_FIELDS_MODE = ("sampled", "retained")[0]
 
 
-PKT_TYPES = ["uint8", "uint16", "uint32", "int8", "int16", "int32", "float"]
+PKT_TYPES = ["string", "uint8", "uint16", "uint32", "int8", "int16", "int32", "float"]
 
 
 def identifier() -> str:
-    return random.choice(string.ascii_letters + "_") + "".join(
+    return random.choice(string.ascii_lowercase + "_") + "".join(
         random.choice(string.ascii_letters + "_" + string.digits)
         for _ in range(random.randint(1, MAX_IDENTIFIER_LENGTH))
     )
@@ -43,49 +46,48 @@ _w = whitespace
 __ = whitespace_with_newlines
 
 
-def generate_non_array_type(depth: int = 0) -> str:
-    kind = random.choice(["number", "flag", "tuple"])
-    if kind == "tuple" and depth < MAX_DEPTH:
-        op = "(" + __()
-        cl = ")" + __()
-        tuples = ",".join(
+def generate_type(types: Set[str]) -> Tuple[str, str]:
+    kind = random.choice(["enum", "struct"])
+    op = "{" + __()
+    cl = "}" + __()
+    if kind == "enum":
+        body = ",".join(
             [
-                generate_type(depth + 1) + whitespace_with_newlines()
-                for _ in range(random.randint(1, MAX_TUPLE_ELEMENTS))
+                identifier() + whitespace_with_newlines()
+                for _ in range(random.randint(1, MAX_ENUM_VARIANTS))
             ]
         )
-        return f"{identifier()}:{_w()}{op}{tuples}{cl}"
-    elif kind == "number" or depth >= MAX_DEPTH:
-        return f"{identifier()}:{_w()}{random.choice(PKT_TYPES)}"
-    elif kind == "flag":
-        variant_s = ",".join(
-            identifier().upper() + whitespace_with_newlines()
-            for _ in range(random.randint(1, 3))
+    elif kind == "struct":
+        if STRUCT_FIELDS_MODE == "sampled":
+            n_fields = min(random.randint(1, MAX_STRUCT_FIELDS), len(types))
+            fields = random.sample(tuple(types), n_fields)
+        else:
+            fields = types
+        body = ",\n".join(
+            "    " + identifier().upper() + ": " + field + maybe_array()
+            for field in fields
         )
-        op = "{" + __()
-        cl = "}" + __()
-        return f"{identifier()}:{_w()}{op}{variant_s}{cl}"
     else:
         raise RuntimeError(f"Unknown kind `{kind}`")
 
+    name = identifier().capitalize()
+    types.add(name)
+    return name, f"{name}:{_w()}{kind}{_w()}{op}{body}{cl}"
 
-def generate_type(depth: int = 0) -> str:
-    if depth > MAX_DEPTH:
-        return ""
 
-    ty = generate_non_array_type(depth).strip()
+def maybe_array() -> str:
     if random.random() < 0.25:
-        ty += "[]" * random.randint(1, MAX_ARRAY_DIMENSIONS)
-    return ty
+        return "[]" * random.randint(1, MAX_ARRAY_DIMENSIONS)
+    return ""
 
 
-def generate_line() -> str:
+def generate_definition(types: Set[str]) -> Tuple[str, str]:
     if random.random() < 1 / 6:
-        return "#" + "".join(
+        return None, "#" + "".join(
             random.choice(string.ascii_letters + string.digits + " \t")
             for _ in range(random.randint(0, MAX_COMMENT_LENGTH))
         )
-    return generate_type()
+    return generate_type(types)
 
 
 if __name__ == "__main__":
@@ -94,9 +96,15 @@ if __name__ == "__main__":
 
     total_size = 0
     with open(OUTPUT_FILENAME, "w") as f:
-        for _ in range(N_LINES):
-            if max_size := MAX_FILE_SIZE_IN_KB and total_size / 1024 >= max_size:
+        types = set(PKT_TYPES)
+        for _ in range(N_DEFNS):
+            if (max_size := MAX_FILE_SIZE_IN_KB) and (total_size / 1024 >= max_size):
                 break
-            line = generate_line() + "\n"
+            name, line = generate_definition(types)
+            line += "\n"
+            if "struct" in line:
+                export = name
             total_size += len(line)
             f.write(line)
+
+        f.write("\n export " + export)
