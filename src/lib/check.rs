@@ -331,15 +331,11 @@ fn resolve_one_second_pass<'a>(
                 if let Some(utype) = unresolved.remove(&ftype_name) {
                     // if it exists, try to resolve it by recursively calling
                     // the function we're in
-                    if let Err(e) =
-                        resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved)
-                    {
-                        // it may fail, so propagate the error out
-                        return Err(e);
-                    }
-                } else {
-                    // if the field's typename is not in unresolved, that means it doesn't exist
-                    // (because it isn't resolved nor unresolved)
+
+                    // it may fail, so propagate the error out
+                    resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved)?;
+                } else if !cache.contains_key(&ftype_name) {
+                    //  if the field's typename is unresolved and not in the cache (resolved), it doesn't exist.
                     return Err(format!(
                         "Declaration for type '{}' does not exist",
                         ftype_name
@@ -676,6 +672,30 @@ mod tests {
             type_check(test).unwrap_err(),
             "Declaration for type 'Flag' does not exist"
         );
+    }
+
+    #[test]
+    fn duplicate_type_uses_are_resolved() {
+        use ast::*;
+        let test = vec![
+            Node::Decl(
+                "A",
+                Type::Struct(Struct(vec![("b", Unresolved("int32", false))])),
+            ),
+            Node::Decl(
+                "B",
+                Type::Struct(Struct(vec![("a", Unresolved("A", false))])),
+            ),
+            Node::Decl(
+                "D",
+                Type::Struct(Struct(vec![
+                    ("b1", Unresolved("B", false)),
+                    ("b2", Unresolved("B", false)),
+                ])),
+            ),
+            Node::Export("D"),
+        ];
+        assert!(type_check(test).is_ok());
     }
 
     #[test]
