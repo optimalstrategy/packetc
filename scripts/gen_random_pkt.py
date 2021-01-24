@@ -2,7 +2,7 @@ import random
 import string
 from typing import Set, Tuple
 
-N_DEFNS = 1000
+N_DEFNS = 100
 OUTPUT_FILENAME = "fuzz.pkt"
 SEED = None  # set to a number for a fixed seed
 
@@ -14,12 +14,11 @@ MAX_WHITESPACE_LENGTH = 10
 MAX_WHITESPACE_WITH_LINES_LENGTH = 2
 WHITESPACE_WEIGHTS = [0.7, 0.3]  # space, newline
 
-MAX_DEPTH = 3
 MAX_ENUM_VARIANTS = 32
 MAX_ARRAY_DIMENSIONS = 1
 MAX_STRUCT_FIELDS = 100
-# Use `min(available, MAX_STRUCT_FIELDS)` if bounded, `available` otherwise
-STRUCT_FIELDS_MODE = ("bounded", "unbounded")[1]
+# Use `min(available, MAX_STRUCT_FIELDS)` random types if sampled, all of them otherwise
+STRUCT_FIELDS_MODE = ("sampled", "retained")[0]
 
 
 PKT_TYPES = ["string", "uint8", "uint16", "uint32", "int8", "int16", "int32", "float"]
@@ -59,7 +58,7 @@ def generate_type(types: Set[str]) -> Tuple[str, str]:
             ]
         )
     elif kind == "struct":
-        if STRUCT_FIELDS_MODE == "bounded":
+        if STRUCT_FIELDS_MODE == "sampled":
             n_fields = min(random.randint(1, MAX_STRUCT_FIELDS), len(types))
             fields = random.sample(tuple(types), n_fields)
         else:

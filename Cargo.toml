@@ -15,7 +15,7 @@ anyhow = "1.0.38"
 clap = { version = "3.0.0-beta.2" }
 
 [lib]
-name = "lib"
+name = "packetc_lib"
 path = "src/lib/lib.rs"
 
 [[bin]]
