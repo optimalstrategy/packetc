@@ -386,7 +386,11 @@ fn collect_used_types<'a>(visited: &mut HashSet<&'a str>, ty: &(&'a str, Resolve
     visited.insert(ty.0.clone());
     if let Some(ty) = ty.1.get_struct_variant() {
         for field in ty.fields.iter() {
-            collect_used_types(visited, &*field.r#type.borrow());
+            let field = &*field.r#type.borrow();
+            if visited.contains(&field.0) {
+                continue;
+            }
+            collect_used_types(visited, field);
         }
     }
 }
