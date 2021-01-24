@@ -1,12 +1,12 @@
 import random
 import string
-from typing import Set
+from typing import Set, Tuple
 
-N_DEFNS = 100
+N_DEFNS = 1000
 OUTPUT_FILENAME = "fuzz.pkt"
 SEED = None  # set to a number for a fixed seed
 
-MAX_FILE_SIZE_IN_KB = 64  # this assumes that every character is 1b
+MAX_FILE_SIZE_IN_KB = 1024  # this assumes that every character is 1b
 
 MAX_COMMENT_LENGTH = 100
 MAX_IDENTIFIER_LENGTH = 100
@@ -47,7 +47,7 @@ _w = whitespace
 __ = whitespace_with_newlines
 
 
-def generate_type(types: Set[str]) -> str:
+def generate_type(types: Set[str]) -> Tuple[str, str]:
     kind = random.choice(["enum", "struct"])
     op = "{" + __()
     cl = "}" + __()
@@ -73,7 +73,7 @@ def generate_type(types: Set[str]) -> str:
 
     name = identifier().capitalize()
     types.add(name)
-    return f"{name}:{_w()}{kind}{_w()}{op}{body}{cl}"
+    return name, f"{name}:{_w()}{kind}{_w()}{op}{body}{cl}"
 
 
 def maybe_array() -> str:
@@ -82,9 +82,9 @@ def maybe_array() -> str:
     return ""
 
 
-def generate_definition(types: Set[str]) -> str:
+def generate_definition(types: Set[str]) -> Tuple[str, str]:
     if random.random() < 1 / 6:
-        return "#" + "".join(
+        return None, "#" + "".join(
             random.choice(string.ascii_letters + string.digits + " \t")
             for _ in range(random.randint(0, MAX_COMMENT_LENGTH))
         )
@@ -101,8 +101,11 @@ if __name__ == "__main__":
         for _ in range(N_DEFNS):
             if (max_size := MAX_FILE_SIZE_IN_KB) and (total_size / 1024 >= max_size):
                 break
-            line = generate_definition(types) + "\n"
+            name, line = generate_definition(types)
+            line += "\n"
+            if "struct" in line:
+                export = name
             total_size += len(line)
             f.write(line)
 
-        f.write("\n export " + random.sample(tuple(types - set(PKT_TYPES)), 1)[0])
+        f.write("\n export " + export)
