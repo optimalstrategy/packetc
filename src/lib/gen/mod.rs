@@ -28,8 +28,8 @@ where
             check::ResolvedType::Struct(s) => gen.push_def(name, s),
         };
     }
-    gen.push_read_impl(from.export.name.clone(), &from.export);
-    gen.push_write_impl(from.export.name.clone(), &from.export);
+    gen.push_read_impl(from.export.name, &from.export);
+    gen.push_write_impl(from.export.name, &from.export);
     gen.finish()
 }
 

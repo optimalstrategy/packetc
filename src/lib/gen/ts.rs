@@ -226,7 +226,7 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
     ctx.push_indent();
 
     for field in &type_info.fields {
-        ctx.push_fname(field.name.clone());
+        ctx.push_fname(field.name);
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
@@ -258,7 +258,7 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
 
 fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
     for field in &type_info.fields {
-        ctx.push_fname(field.name.clone());
+        ctx.push_fname(field.name);
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
@@ -502,7 +502,7 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &
         item_var
     );
     for field in &type_info.fields {
-        ctx.push_fname(field.name.clone());
+        ctx.push_fname(field.name);
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
@@ -542,7 +542,7 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &
 
 fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
     for field in &type_info.fields {
-        ctx.push_fname(field.name.clone());
+        ctx.push_fname(field.name);
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {

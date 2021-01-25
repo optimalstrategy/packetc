@@ -31,7 +31,7 @@ fn collect_types<'a>(ast: &[ast::Node<'a>]) -> Result<HashMap<&'a str, ast::Type
             if cache.contains_key(n) {
                 return Err(format!("Schema has duplicate declaration: {}", n));
             }
-            cache.insert(n.clone(), t.clone());
+            cache.insert(*n, t.clone());
         }
     }
 
@@ -203,7 +203,7 @@ fn resolve_enum<'a>(
                 variant, name
             ));
         }
-        variant_names.insert(variant.clone());
+        variant_names.insert(variant);
         variants.push(EnumVariant {
             name: variant,
             value: {
@@ -228,7 +228,7 @@ fn resolve_one_first_pass<'a>(
                 Ok(rty) => {
                     unresolved.remove(&name);
                     first_pass.insert(
-                        name.clone(),
+                        name,
                         Ptr::new((
                             name,
                             ResolvedType::Enum(Enum {
@@ -249,7 +249,7 @@ fn resolve_one_first_pass<'a>(
                     return Err(format!("Duplicate field '{}' on struct '{}'", fname, name));
                 }
                 field_names.insert(fname);
-                if let Some(field) = resolve_struct_field(fname.clone(), fty.clone(), builtins) {
+                if let Some(field) = resolve_struct_field(fname, fty.clone(), builtins) {
                     fields.push(field);
                 } else {
                     break;
@@ -258,7 +258,7 @@ fn resolve_one_first_pass<'a>(
             if fields.len() == s.0.len() {
                 unresolved.remove(&name);
                 first_pass.insert(
-                    name.clone(),
+                    name,
                     Ptr::new((name, ResolvedType::Struct(Struct { fields }))),
                 );
             }
@@ -304,14 +304,13 @@ fn resolve_one_second_pass<'a>(
                 &name
             ));
         }
-        visited.insert(name.clone());
+        visited.insert(name);
         // iterate over each field, trying to resolve it
         // store any field (+ its type) which could not be resolved
         let mut not_resolved = Vec::new();
         let mut fields = Vec::new();
         for (field_name, field_type) in s.0.into_iter() {
-            if let Some(field) = resolve_struct_field(field_name.clone(), field_type.clone(), cache)
-            {
+            if let Some(field) = resolve_struct_field(field_name, field_type.clone(), cache) {
                 fields.push(field);
             } else {
                 not_resolved.push((field_name, field_type));
@@ -320,13 +319,13 @@ fn resolve_one_second_pass<'a>(
         if not_resolved.is_empty() {
             // if all the fields are resolved, construct the type and cache it
             cache.insert(
-                name.clone(),
+                name,
                 Ptr::new((name, ResolvedType::Struct(Struct { fields }))),
             );
         } else {
             // otherwise, for each field that couldn't be resolved, try to resolve it
             for (_, field_type) in not_resolved.iter() {
-                let ftype_name = field_type.0.clone();
+                let ftype_name = field_type.0;
                 // try to find the field's typename in whatever is left unresolved
                 if let Some(utype) = unresolved.remove(&ftype_name) {
                     // if it exists, try to resolve it by recursively calling
@@ -351,7 +350,7 @@ fn resolve_one_second_pass<'a>(
                 .collect::<Vec<StructField>>();
             // and we have a complete type
             cache.insert(
-                name.clone(),
+                name,
                 Ptr::new((
                     name,
                     ResolvedType::Struct(Struct {
@@ -383,7 +382,7 @@ fn resolve_second_pass<'a>(
 }
 
 fn collect_used_types<'a>(visited: &mut HashSet<&'a str>, ty: &(&'a str, ResolvedType<'a>)) {
-    visited.insert(ty.0.clone());
+    visited.insert(ty.0);
     if let Some(ty) = ty.1.get_struct_variant() {
         for field in ty.fields.iter() {
             let field = &*field.r#type.borrow();
@@ -434,7 +433,7 @@ pub struct Resolved<'a> {
     pub types: HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
 }
 
-pub fn type_check<'a>(ast: ast::AST<'a>) -> Result<Resolved<'a>, String> {
+pub fn type_check(ast: ast::AST<'_>) -> Result<Resolved<'_>, String> {
     let export = match get_export(&ast) {
         Ok(e) => e,
         Err(e) => return Err(e),
