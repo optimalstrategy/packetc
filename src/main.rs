@@ -1,5 +1,5 @@
 extern crate clap;
-extern crate lib;
+extern crate packetc_lib as pkt;
 
 use anyhow::Result;
 use clap::Clap;
@@ -66,8 +66,8 @@ fn run_one(path: String, lang: Lang) -> Result<Schema> {
     Ok(Schema {
         path: PathBuf::from(path.clone()),
         generated: match lang {
-            Lang::Rust => lib::compile::<lib::gen::rust::Rust>(&fs::read_to_string(path)?)?,
-            Lang::TS => lib::compile::<lib::gen::ts::TypeScript>(&fs::read_to_string(path)?)?,
+            Lang::Rust => pkt::compile::<pkt::gen::rust::Rust>(&fs::read_to_string(path)?)?,
+            Lang::TS => pkt::compile::<pkt::gen::ts::TypeScript>(&fs::read_to_string(path)?)?,
             //_ => return println!("not implemented"),
         },
     })

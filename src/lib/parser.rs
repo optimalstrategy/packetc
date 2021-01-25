@@ -16,8 +16,8 @@ peg::parser!(pub grammar pkt() for str {
     rule comment()
         = "#" [ch if ch != '\n']* __
 
-    rule string() -> String
-        = s:$(['a'..='z'|'A'..='Z'|'0'..='9'|'_']*) { s.to_string() }
+    rule string() -> &'input str
+        = s:$(['a'..='z'|'A'..='Z'|'0'..='9'|'_']*) { s }
 
     /// Parses reserved keywords (the base types + enum/struct keywords)
     rule reserved()
@@ -32,24 +32,25 @@ peg::parser!(pub grammar pkt() for str {
         / "enum"
         / "struct"
     /// Parses the first character of an identifier, which cannot contain numbers
-    rule ident_start() -> String = s:$(['a'..='z'|'A'..='Z'|'_']) { s.to_string() }
+    rule ident_start() -> &'input str = s:$(['a'..='z'|'A'..='Z'|'_']) { s }
     /// Parses any alphanumeric characters as part of an identifier
-    rule ident_chars() -> String = s:$(['a'..='z'|'A'..='Z'|'0'..='9'|'_']) { s.to_string() }
+    rule ident_chars() -> &'input str = s:$(['a'..='z'|'A'..='Z'|'0'..='9'|'_']) { s }
     /// Parses an entire identifier, ensuring no reserved keywords are used
-    rule ident() -> String
-        = i:quiet!{ $(!reserved() ident_start() ident_chars()*) } { i.to_string() }
+    rule ident() -> &'input str
+        = i:quiet!{ $(!reserved() ident_start() ident_chars()*) } { i }
 
-    rule enum_variant() -> String
+    rule enum_variant() -> &'input str
         = s:ident() ___ ","? ___ { s }
     /// Parses an enum in the form `identifier: enum { VARIANT_A, ... }`
-    rule enum_type() -> Enum
+    rule enum_type() -> Enum<'input>
         = _ "enum" _ "{" ___ variants:(enum_variant()*) ___ "}" { Enum(variants) }
 
-    rule struct_field() -> Option<(String, Unresolved)>
+    rule struct_field() -> Option<(&'input str, Unresolved<'input>)>
         = comment() ___ { None }
         / i:ident() _ ":" _ t:string() a:("[]"?) ___ ","? ___ { Some((i, Unresolved(t, a.is_some()))) }
+
     /// Parses a struct in the from `identifier: struct { name: type or type[], ... }
-    rule struct_type() -> Struct
+    rule struct_type() -> Struct<'input>
         = _ "struct" _ "{" ___ fields:(struct_field()*) ___ "}" {
             Struct(fields.into_iter()
             .filter_map(|x| x)
@@ -57,28 +58,28 @@ peg::parser!(pub grammar pkt() for str {
         }
 
     /// Recursively parses a type
-    rule r#type() -> Type
+    rule r#type() -> Type<'input>
         = e:enum_type() { Type::Enum(e) }
         / s:struct_type() { Type::Struct(s) }
 
     /// Parses a declaration in the form `identifier : type`
-    rule decl() -> Node
+    rule decl() -> Node<'input>
         = _ i:ident() _ ":" _ t:r#type() ___ {
             Node::Decl(i, t)
         }
 
-    rule export() -> Node
+    rule export() -> Node<'input>
         = "export" _ s:string() {
             Node::Export(s)
         }
 
-    rule line() -> Option<Node>
+    rule line() -> Option<Node<'input>>
         = _ comment() __ { None }
         / _ e:(export()) __ { Some(e) }
         / _ s:(decl()) __ { Some(s) }
 
     /// Parses a schema file
-    pub rule schema() -> AST
+    pub rule schema() -> AST<'input>
         = __? lines:(line()*) {
             lines.into_iter()
                 .filter_map(|x| x)
@@ -212,11 +213,8 @@ mod tests {
         "#
         .build();
         let expected: AST = vec![Node::Decl(
-            "a".to_string(),
-            Type::Struct(Struct(vec![(
-                "v".to_string(),
-                Unresolved("uint8".to_string(), false),
-            )])),
+            "a",
+            Type::Struct(Struct(vec![("v", Unresolved("uint8", false))])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
@@ -234,10 +232,10 @@ mod tests {
         "#
         .build();
         let expected: AST = vec![Node::Decl(
-            "a".to_string(),
+            "a",
             Type::Struct(Struct(vec![
-                ("a".to_string(), Unresolved("uint8".to_string(), false)),
-                ("b".to_string(), Unresolved("uint8".to_string(), false)),
+                ("a", Unresolved("uint8", false)),
+                ("b", Unresolved("uint8", false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -249,10 +247,7 @@ mod tests {
         asdf: enum { A, B }
         "#
         .build();
-        let expected: AST = vec![Node::Decl(
-            "asdf".to_string(),
-            Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
-        )];
+        let expected: AST = vec![Node::Decl("asdf", Type::Enum(Enum(vec!["A", "B"])))];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
@@ -265,10 +260,10 @@ mod tests {
         }"#
         .build();
         let expected: AST = vec![Node::Decl(
-            "asdf".to_string(),
+            "asdf",
             Type::Struct(Struct(vec![
-                ("x".to_string(), Unresolved("float".to_string(), false)),
-                ("y".to_string(), Unresolved("float".to_string(), false)),
+                ("x", Unresolved("float", false)),
+                ("y", Unresolved("float", false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -284,10 +279,10 @@ mod tests {
         "#
         .build();
         let expected: AST = vec![Node::Decl(
-            "asdf".to_string(),
+            "asdf",
             Type::Struct(Struct(vec![
-                ("a".to_string(), Unresolved("A".to_string(), false)),
-                ("b".to_string(), Unresolved("B".to_string(), false)),
+                ("a", Unresolved("A", false)),
+                ("b", Unresolved("B", false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -303,10 +298,10 @@ mod tests {
         "#
         .build();
         let expected: AST = vec![Node::Decl(
-            "asdf".to_string(),
+            "asdf",
             Type::Struct(Struct(vec![
-                ("a".to_string(), Unresolved("A".to_string(), true)),
-                ("b".to_string(), Unresolved("B".to_string(), true)),
+                ("a", Unresolved("A", true)),
+                ("b", Unresolved("B", true)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -318,7 +313,7 @@ mod tests {
         export Test
         "#
         .build();
-        let expected: AST = vec![Node::Export("Test".to_string())];
+        let expected: AST = vec![Node::Export("Test")];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
 
@@ -342,36 +337,33 @@ mod tests {
         "#
         .build();
         let expected: AST = vec![
+            Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
             Node::Decl(
-                "Flag".to_string(),
-                Type::Enum(Enum(vec!["A".to_string(), "B".to_string()])),
-            ),
-            Node::Decl(
-                "Position".to_string(),
+                "Position",
                 Type::Struct(Struct(vec![
-                    ("x".to_string(), Unresolved("float".to_string(), false)),
-                    ("y".to_string(), Unresolved("float".to_string(), false)),
+                    ("x", Unresolved("float", false)),
+                    ("y", Unresolved("float", false)),
                 ])),
             ),
             Node::Decl(
-                "Value".to_string(),
+                "Value",
                 Type::Struct(Struct(vec![
-                    ("a".to_string(), Unresolved("uint32".to_string(), false)),
-                    ("b".to_string(), Unresolved("int32".to_string(), false)),
-                    ("c".to_string(), Unresolved("uint8".to_string(), false)),
-                    ("d".to_string(), Unresolved("uint8".to_string(), false)),
+                    ("a", Unresolved("uint32", false)),
+                    ("b", Unresolved("int32", false)),
+                    ("c", Unresolved("uint8", false)),
+                    ("d", Unresolved("uint8", false)),
                 ])),
             ),
             Node::Decl(
-                "ComplexType".to_string(),
+                "ComplexType",
                 Type::Struct(Struct(vec![
-                    ("flag".to_string(), Unresolved("Flag".to_string(), false)),
-                    ("pos".to_string(), Unresolved("Position".to_string(), false)),
-                    ("names".to_string(), Unresolved("string".to_string(), true)),
-                    ("values".to_string(), Unresolved("Value".to_string(), true)),
+                    ("flag", Unresolved("Flag", false)),
+                    ("pos", Unresolved("Position", false)),
+                    ("names", Unresolved("string", true)),
+                    ("values", Unresolved("Value", true)),
                 ])),
             ),
-            Node::Export("ComplexType".to_string()),
+            Node::Export("ComplexType"),
         ];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }

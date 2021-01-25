@@ -38,12 +38,12 @@ fn pretty_error(file: &str, err: ParseError<LineCol>) -> String {
     out_str
 }
 
-pub fn compile<Lang>(schema: &str) -> Result<String, Error>
+pub fn compile<'s, Lang>(schema: &'s str) -> Result<String, Error>
 where
     Lang: gen::Language + Default + gen::Common,
-    check::Enum: gen::Definition<Lang>,
-    check::Struct: gen::Definition<Lang>,
-    check::Export: gen::ReadImpl<Lang> + gen::WriteImpl<Lang>,
+    check::Enum<'s>: gen::Definition<Lang>,
+    check::Struct<'s>: gen::Definition<Lang>,
+    check::Export<'s>: gen::ReadImpl<Lang> + gen::WriteImpl<Lang>,
 {
     let ast = match parser::pkt::schema(schema) {
         Ok(ast) => ast,
