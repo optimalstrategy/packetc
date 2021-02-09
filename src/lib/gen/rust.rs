@@ -599,7 +599,13 @@ fn gen_read_impl_struct(
     }
 
     if let Some(mut old_stack) = old_stack {
-        append!(ctx.out, "{}{} = {};\n", ctx.indentation, fname, bind_var);
+        append!(
+            ctx.out,
+            "{}{} = Some({});\n",
+            ctx.indentation,
+            fname,
+            bind_var
+        );
 
         ctx.swap_stack(&mut old_stack);
         ctx.pop_indent();
@@ -1546,7 +1552,7 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut Test) -> Result<()
         let mut output_opt_struct = Position::default();
         output_opt_struct.x = reader.read_float()?;
         output_opt_struct.y = reader.read_float()?;
-        output.opt_struct = output_opt_struct;
+        output.opt_struct = Some(output_opt_struct);
     }
     Ok(())
 }
