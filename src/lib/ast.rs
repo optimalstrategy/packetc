@@ -1,3 +1,4 @@
+#![allow(clippy::upper_case_acronyms)]
 //! Contains the "unresolved" AST which is output by the parser
 //!
 //! Unresolved meaning it needs to be checked for duplicate
