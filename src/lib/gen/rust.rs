@@ -754,7 +754,7 @@ fn gen_def_enum_tryfrom_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut Str
     }
     append!(
         out,
-        "{}_ => Err(packet::Error::InvalidEnumValue(value, \"{}\"))\n",
+        "{}_ => Err(packet::Error::InvalidEnumValue(value as usize, \"{}\"))\n",
         indent,
         name
     );
@@ -916,7 +916,7 @@ impl std::convert::TryFrom<u8> for Flag {
         match value {
             1 => Ok(Flag::A),
             2 => Ok(Flag::B),
-            _ => Err(packet::Error::InvalidEnumValue(value, \"Flag\"))
+            _ => Err(packet::Error::InvalidEnumValue(value as usize, \"Flag\"))
         }
     }
 }
