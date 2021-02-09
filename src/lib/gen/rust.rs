@@ -351,6 +351,15 @@ fn gen_read_impl_builtin(
     type_name: &str,
     optional: bool,
 ) {
+    if optional {
+        append!(
+            ctx.out,
+            "{}if reader.read_uint8()? > 0 {{\n",
+            ctx.indentation
+        );
+        ctx.push_indent();
+    }
+
     match type_info {
         check::Builtin::String => {
             let len_var = varname(&ctx.stack, "len");
@@ -379,6 +388,11 @@ fn gen_read_impl_builtin(
             type_name,
             if optional { ")" } else { "" }
         ),
+    }
+
+    if optional {
+        ctx.pop_indent();
+        append!(ctx.out, "{}}}\n", ctx.indentation);
     }
 }
 
@@ -426,6 +440,15 @@ fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_nam
 }
 
 fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
+    if optional {
+        append!(
+            ctx.out,
+            "{}if reader.read_uint8()? > 0 {{\n",
+            ctx.indentation
+        );
+        ctx.push_indent();
+    }
+
     let repr_name = match type_info.repr {
         check::EnumRepr::U8 => "uint8",
         check::EnumRepr::U16 => "uint16",
@@ -441,6 +464,11 @@ fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &st
         repr_name,
         if optional { ")" } else { "" }
     );
+
+    if optional {
+        ctx.pop_indent();
+        append!(ctx.out, "{}}}\n", ctx.indentation);
+    }
 }
 
 fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type_name: &str) {
@@ -493,7 +521,7 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type
                 gen_read_impl_struct_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Struct(field_type_info) => {
-                gen_read_impl_struct(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_struct(ctx, &field_type_info, &field_type.0, field.optional)
             }
         }
         ctx.pop_fname();
@@ -511,17 +539,40 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type
     append!(ctx.out, "{}}}\n", ctx.indentation);
 }
 
-fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
+fn gen_read_impl_struct(
+    ctx: &mut ImplCtx,
+    type_info: &check::Struct,
+    type_name: &str,
+    optional: bool,
+) {
+    let (old_stack, fname, bind_var) = if optional {
+        let fname = fname(&ctx.stack);
+        let bind_var = bindname(&ctx.stack);
+        append!(
+            ctx.out,
+            "{}if reader.read_uint8()? > 0 {{\n",
+            ctx.indentation
+        );
+        ctx.push_indent();
+        append!(
+            ctx.out,
+            "{}let mut {} = {}::default();\n",
+            ctx.indentation,
+            bind_var,
+            type_name
+        );
+
+        let mut old_stack = Vec::new();
+        ctx.swap_stack(&mut old_stack);
+        ctx.push_fname(&bind_var);
+
+        (Some(old_stack), fname, bind_var)
+    } else {
+        (None, String::new(), String::new())
+    };
+
     for field in &type_info.fields {
         ctx.push_fname(field.name);
-        if field.optional {
-            append!(
-                ctx.out,
-                "{}if reader.read_uint8()? > 0 {{\n",
-                ctx.indentation
-            );
-            ctx.push_indent();
-        }
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
@@ -540,15 +591,19 @@ fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
                 gen_read_impl_struct_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Struct(field_type_info) => {
-                gen_read_impl_struct(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_struct(ctx, &field_type_info, &field_type.0, field.optional)
             }
         }
 
-        if field.optional {
-            ctx.pop_indent();
-            append!(ctx.out, "{}}}\n", ctx.indentation);
-        }
         ctx.pop_fname();
+    }
+
+    if let Some(mut old_stack) = old_stack {
+        append!(ctx.out, "{}{} = {};\n", ctx.indentation, fname, bind_var);
+
+        ctx.swap_stack(&mut old_stack);
+        ctx.pop_indent();
+        append!(ctx.out, "{}}}\n", ctx.indentation);
     }
 }
 
@@ -562,7 +617,7 @@ impl<'a> ReadImpl<Rust> for check::Export<'a> {
             name
         );
         ctx.push_indent();
-        gen_read_impl_struct(&mut ctx, &self.r#struct, &name);
+        gen_read_impl_struct(&mut ctx, &self.r#struct, &name, false);
         append!(ctx.out, "{}Ok(())\n", ctx.indentation);
         ctx.pop_indent();
         append!(ctx.out, "}}\n");
@@ -1036,12 +1091,6 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
                     StructField {
                         name: "b",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
-                        array: true,
-                        optional: true,
-                    },
-                    StructField {
-                        name: "c",
-                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
                         optional: false,
                     },
@@ -1059,14 +1108,7 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut Test) -> Result<()
     if reader.read_uint8()? > 0 {
         output.a = Some(reader.read_uint8()?);
     }
-    if reader.read_uint8()? > 0 {
-        let output_b_len = reader.read_uint32()? as usize;
-        output.b.reserve(output_b_len);
-        for _ in 0..output_b_len {
-            output.b.push(reader.read_uint8()?);
-        }
-    }
-    output.c = reader.read_uint8()?;
+    output.b = reader.read_uint8()?;
     Ok(())
 }
 "
@@ -1255,7 +1297,7 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut TestB) -> Result<(
                     },
                     StructField {
                         name: "enum_array",
-                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: true,
                         optional: false,
                     },
@@ -1267,9 +1309,27 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut TestB) -> Result<(
                     },
                     StructField {
                         name: "struct_array",
-                        r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: true,
                         optional: false,
+                    },
+                    StructField {
+                        name: "opt_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_enum",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_struct",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
+                        array: false,
+                        optional: true,
                     },
                 ],
             },
@@ -1305,6 +1365,28 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
     for input_struct_array_item in input.struct_array.iter() {
         writer.write_float(input_struct_array_item.x);
         writer.write_float(input_struct_array_item.y);
+    }
+    match input.opt_scalar {
+        None => writer.write_uint8(0u8),
+        Some(input_opt_scalar) => {
+            writer.write_uint8(1u8);
+            writer.write_uint8(input_opt_scalar);
+        }
+    }
+    match input.opt_enum {
+        None => writer.write_uint8(0u8),
+        Some(input_opt_enum) => {
+            writer.write_uint8(1u8);
+            writer.write_uint8(input_opt_enum as u8);
+        }
+    }
+    match input.opt_struct {
+        None => writer.write_uint8(0u8),
+        Some(input_opt_struct) => {
+            writer.write_uint8(1u8);
+            writer.write_float(input_opt_struct.x);
+            writer.write_float(input_opt_struct.y);
+        }
     }
 }
 "
@@ -1379,7 +1461,7 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
                     },
                     StructField {
                         name: "enum_array",
-                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: true,
                         optional: false,
                     },
@@ -1391,9 +1473,27 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
                     },
                     StructField {
                         name: "struct_array",
-                        r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: true,
                         optional: false,
+                    },
+                    StructField {
+                        name: "opt_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_enum",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_struct",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
+                        array: false,
+                        optional: true,
                     },
                 ],
             },
@@ -1435,6 +1535,18 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut Test) -> Result<()
         output_struct_array_item.x = reader.read_float()?;
         output_struct_array_item.y = reader.read_float()?;
         output.struct_array.push(output_struct_array_item);
+    }
+    if reader.read_uint8()? > 0 {
+        output.opt_scalar = Some(reader.read_uint8()?);
+    }
+    if reader.read_uint8()? > 0 {
+        output.opt_enum = Some(Flag::try_from(reader.read_uint8()?)?);
+    }
+    if reader.read_uint8()? > 0 {
+        let mut output_opt_struct = Position::default();
+        output_opt_struct.x = reader.read_float()?;
+        output_opt_struct.y = reader.read_float()?;
+        output.opt_struct = output_opt_struct;
     }
     Ok(())
 }

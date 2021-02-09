@@ -277,7 +277,7 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
             ctx.push_indent();
             append!(
                 ctx.out,
-                "{}case null: writer.write_uint8(0); break;\n",
+                "{}case undefined: case null: writer.write_uint8(0); break;\n",
                 ctx.indentation
             );
             append!(ctx.out, "{}default: {{\n", ctx.indentation);
@@ -409,7 +409,20 @@ fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, ty
     append!(ctx.out, "{}}}\n", ctx.indentation);
 }
 
-fn gen_read_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_read_impl_builtin(
+    ctx: &mut ImplCtx,
+    type_info: &check::Builtin,
+    type_name: &str,
+    optional: bool,
+) {
+    if optional {
+        append!(
+            ctx.out,
+            "{}if (reader.read_uint8() > 0) {{\n",
+            ctx.indentation
+        );
+        ctx.push_indent();
+    }
     match type_info {
         check::Builtin::String => {
             let len_var = varname(&ctx.stack, "len");
@@ -434,6 +447,10 @@ fn gen_read_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_nam
             fname(&ctx.stack),
             type_name
         ),
+    }
+    if optional {
+        ctx.pop_indent();
+        append!(ctx.out, "{}}}\n", ctx.indentation);
     }
 }
 
@@ -490,7 +507,16 @@ fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_nam
     append!(ctx.out, "{}}}\n", ctx.indentation);
 }
 
-fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str) {
+fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
+    if optional {
+        append!(
+            ctx.out,
+            "{}if (reader.read_uint8() > 0) {{\n",
+            ctx.indentation
+        );
+        ctx.push_indent();
+    }
+
     let repr_name = match type_info.repr {
         check::EnumRepr::U8 => "uint8",
         check::EnumRepr::U16 => "uint16",
@@ -504,6 +530,11 @@ fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &st
         type_name,
         repr_name
     );
+
+    if optional {
+        ctx.pop_indent();
+        append!(ctx.out, "{}}}\n", ctx.indentation);
+    }
 }
 
 fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
@@ -552,19 +583,19 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &
                 gen_read_impl_builtin_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Builtin(field_type_info) => {
-                gen_read_impl_builtin(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_builtin(ctx, &field_type_info, &field_type.0, field.optional)
             }
             check::ResolvedType::Enum(field_type_info) if field.array => {
                 gen_read_impl_enum_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Enum(field_type_info) => {
-                gen_read_impl_enum(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_enum(ctx, &field_type_info, &field_type.0, field.optional)
             }
             check::ResolvedType::Struct(field_type_info) if field.array => {
                 gen_read_impl_struct_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Struct(field_type_info) => {
-                gen_read_impl_struct(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_struct(ctx, &field_type_info, &field_type.0, field.optional)
             }
         }
         ctx.pop_fname();
@@ -583,45 +614,69 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &
     append!(ctx.out, "{}}}\n", ctx.indentation);
 }
 
-fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
+fn gen_read_impl_struct(
+    ctx: &mut ImplCtx,
+    type_info: &check::Struct,
+    type_name: &str,
+    optional: bool,
+) {
+    let (old_stack, fname, bind_var) = if optional {
+        let fname = fname(&ctx.stack);
+        let bind_var = bindname(&ctx.stack);
+        append!(
+            ctx.out,
+            "{}if (reader.read_uint8() > 0) {{\n",
+            ctx.indentation
+        );
+        ctx.push_indent();
+        append!(
+            ctx.out,
+            "{}let {} = {{}} as unknown as {};\n",
+            ctx.indentation,
+            bind_var,
+            type_name
+        );
+
+        let mut old_stack = Vec::new();
+        ctx.swap_stack(&mut old_stack);
+        ctx.push_fname(&bind_var);
+
+        (Some(old_stack), fname, bind_var)
+    } else {
+        (None, String::new(), String::new())
+    };
+
     for field in &type_info.fields {
         ctx.push_fname(field.name);
-        if field.optional {
-            append!(
-                ctx.out,
-                "{}if (reader.read_uint8() > 0) {{\n",
-                ctx.indentation
-            );
-            ctx.push_indent();
-        }
-
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
                 gen_read_impl_builtin_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Builtin(field_type_info) => {
-                gen_read_impl_builtin(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_builtin(ctx, &field_type_info, &field_type.0, field.optional)
             }
             check::ResolvedType::Enum(field_type_info) if field.array => {
                 gen_read_impl_enum_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Enum(field_type_info) => {
-                gen_read_impl_enum(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_enum(ctx, &field_type_info, &field_type.0, field.optional)
             }
             check::ResolvedType::Struct(field_type_info) if field.array => {
                 gen_read_impl_struct_array(ctx, &field_type_info, &field_type.0)
             }
             check::ResolvedType::Struct(field_type_info) => {
-                gen_read_impl_struct(ctx, &field_type_info, &field_type.0)
+                gen_read_impl_struct(ctx, &field_type_info, &field_type.0, field.optional)
             }
         }
-
-        if field.optional {
-            ctx.pop_indent();
-            append!(ctx.out, "{}}}\n", ctx.indentation);
-        }
         ctx.pop_fname();
+    }
+    if let Some(mut old_stack) = old_stack {
+        append!(ctx.out, "{}{} = {};\n", ctx.indentation, fname, bind_var);
+
+        ctx.swap_stack(&mut old_stack);
+        ctx.pop_indent();
+        append!(ctx.out, "{}}}\n", ctx.indentation);
     }
 }
 
@@ -635,7 +690,7 @@ impl<'a> ReadImpl<TypeScript> for check::Export<'a> {
             name
         );
         ctx.push_indent();
-        gen_read_impl_struct(&mut ctx, &self.r#struct, &name);
+        gen_read_impl_struct(&mut ctx, &self.r#struct, &name, false);
         ctx.pop_indent();
         append!(ctx.out, "}}\n");
     }
@@ -972,7 +1027,7 @@ export interface Test {
 export function write(writer: Writer, input: Test) {
     let input_a = input.a;
     switch (input_a) {
-        case null: writer.write_uint8(0); break;
+        case undefined: case null: writer.write_uint8(0); break;
         default: {
             writer.write_uint8(1);
             writer.write_uint8(input_a);
@@ -980,7 +1035,7 @@ export function write(writer: Writer, input: Test) {
     }
     let input_b = input.b;
     switch (input_b) {
-        case null: writer.write_uint8(0); break;
+        case undefined: case null: writer.write_uint8(0); break;
         default: {
             writer.write_uint8(1);
             writer.write_uint32(input_b.length);
@@ -1011,12 +1066,6 @@ export function write(writer: Writer, input: Test) {
                     StructField {
                         name: "b",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
-                        array: true,
-                        optional: true,
-                    },
-                    StructField {
-                        name: "c",
-                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
                         optional: false,
                     },
@@ -1034,14 +1083,7 @@ export function read(reader: Reader, output: Test) {
     if (reader.read_uint8() > 0) {
         output.a = reader.read_uint8();
     }
-    if (reader.read_uint8() > 0) {
-        let output_b_len = reader.read_uint32();
-        output.b = new Array(output_b_len);
-        for (let output_b_index = 0; output_b_index < output_b_len; ++output_b_index) {
-            output.b[output_b_index] = reader.read_uint8();
-        }
-    }
-    output.c = reader.read_uint8();
+    output.b = reader.read_uint8();
 }
 "
         );
@@ -1228,7 +1270,7 @@ export function read(reader: Reader, output: TestB) {
                     },
                     StructField {
                         name: "enum_array",
-                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: true,
                         optional: false,
                     },
@@ -1240,9 +1282,27 @@ export function read(reader: Reader, output: TestB) {
                     },
                     StructField {
                         name: "struct_array",
-                        r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: true,
                         optional: false,
+                    },
+                    StructField {
+                        name: "opt_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_enum",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_struct",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
+                        array: false,
+                        optional: true,
                     },
                 ],
             },
@@ -1278,6 +1338,31 @@ export function write(writer: Writer, input: Test) {
     for (let input_struct_array_item of input.struct_array) {
         writer.write_float(input_struct_array_item.x);
         writer.write_float(input_struct_array_item.y);
+    }
+    let input_opt_scalar = input.opt_scalar;
+    switch (input_opt_scalar) {
+        case undefined: case null: writer.write_uint8(0); break;
+        default: {
+            writer.write_uint8(1);
+            writer.write_uint8(input_opt_scalar);
+        }
+    }
+    let input_opt_enum = input.opt_enum;
+    switch (input_opt_enum) {
+        case undefined: case null: writer.write_uint8(0); break;
+        default: {
+            writer.write_uint8(1);
+            writer.write_uint8(input_opt_enum as number);
+        }
+    }
+    let input_opt_struct = input.opt_struct;
+    switch (input_opt_struct) {
+        case undefined: case null: writer.write_uint8(0); break;
+        default: {
+            writer.write_uint8(1);
+            writer.write_float(input_opt_struct.x);
+            writer.write_float(input_opt_struct.y);
+        }
     }
 }
 "
@@ -1352,7 +1437,7 @@ export function write(writer: Writer, input: Test) {
                     },
                     StructField {
                         name: "enum_array",
-                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: true,
                         optional: false,
                     },
@@ -1364,9 +1449,27 @@ export function write(writer: Writer, input: Test) {
                     },
                     StructField {
                         name: "struct_array",
-                        r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: true,
                         optional: false,
+                    },
+                    StructField {
+                        name: "opt_scalar",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_enum",
+                        r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "opt_struct",
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
+                        array: false,
+                        optional: true,
                     },
                 ],
             },
@@ -1408,6 +1511,18 @@ export function read(reader: Reader, output: Test) {
         output_struct_array_item.x = reader.read_float();
         output_struct_array_item.y = reader.read_float();
         output.struct_array[output_struct_array_index] = output_struct_array_item;
+    }
+    if (reader.read_uint8() > 0) {
+        output.opt_scalar = reader.read_uint8();
+    }
+    if (reader.read_uint8() > 0) {
+        output.opt_enum = Flag_try_from(reader.read_uint8());
+    }
+    if (reader.read_uint8() > 0) {
+        let output_opt_struct = {} as unknown as Position;
+        output_opt_struct.x = reader.read_float();
+        output_opt_struct.y = reader.read_float();
+        output.opt_struct = output_opt_struct;
     }
 }
 "
