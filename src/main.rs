@@ -3,8 +3,8 @@ extern crate packetc_lib as pkt;
 
 use anyhow::Result;
 use clap::Clap;
-use std::fs;
 use std::path::PathBuf;
+use std::{fs, path::Component, path::Path};
 
 #[derive(Clap)]
 #[clap(version = "1.0", author = "Jan P. <honza.spacir1@gmail.com>")]
@@ -76,7 +76,6 @@ fn run_one(path: String, lang: Lang) -> Result<Schema> {
 fn run_all(dir: String, lang: Lang) -> Result<Vec<Schema>> {
     let mut out = Vec::new();
     visit_files(&dir, &mut |entry| {
-        // damn, this is ugly...
         out.push(run_one(
             entry
                 .path()
@@ -90,63 +89,59 @@ fn run_all(dir: String, lang: Lang) -> Result<Vec<Schema>> {
     Ok(out)
 }
 
-fn save_one(schema: Schema, lang: Lang, inp: &str, outp: &str, to_dir: bool) -> Result<()> {
-    let path = schema.path.clone();
-
-    let out = if to_dir {
-        let full_out_path = format!(
-            "{outp}/{parent}",
-            outp = outp,
-            parent = path
-                .strip_prefix(inp)?
-                .parent()
-                .map_or_else(String::new, |v| {
-                    let parent = v.to_str();
-                    if parent.is_some() && !parent.unwrap().is_empty() {
-                        format!("{}/", parent.unwrap())
-                    } else {
-                        String::new()
-                    }
-                })
-        )
-        .chars()
-        // also transform path separators
-        .map(|c| if c == '\\' { '/' } else { c })
-        .collect::<String>();
-
-        fs::create_dir_all(&full_out_path)?;
-
-        format!(
-            "{dir}{filename}.{ext}",
-            dir = full_out_path,
-            filename = schema.path.file_stem().unwrap().to_str().unwrap(),
-            ext = extension(lang)
-        )
-    } else {
-        format!(
-            "{filename}.{ext}",
-            filename = schema.path.file_stem().unwrap().to_str().unwrap(),
-            ext = extension(lang)
-        )
-    };
-
-    println!("Writing to {}", out);
+fn save_one(schema: Schema, out: &Path) -> Result<()> {
+    println!("Writing to {}", out.display());
+    if let Some(parent) = out.parent() {
+        fs::create_dir_all(parent)?;
+    }
     fs::write(out, schema.generated)?;
-
     Ok(())
+}
+
+fn format_path(
+    file: &Path,
+    base_dir: &Path,
+    out_dir: &Path,
+    lang: Lang,
+    preserve_dir: bool,
+) -> Result<PathBuf> {
+    if preserve_dir {
+        Ok(out_dir
+            .components()
+            .chain(file.strip_prefix(base_dir)?.components())
+            .collect::<PathBuf>()
+            .with_extension(extension(lang)))
+    } else {
+        println!("{}", out_dir.display());
+        Ok(out_dir
+            .components()
+            // This should never panic
+            .chain(vec![Component::Normal(file.file_stem().unwrap())].into_iter())
+            .collect::<PathBuf>()
+            .with_extension(extension(lang)))
+    }
 }
 
 fn main() -> Result<()> {
     let opts = Opts::parse();
+    let base_dir = PathBuf::from(opts.path.clone());
+    let out_dir = PathBuf::from(opts.out.clone());
     if let Ok(meta) = fs::metadata(&opts.path) {
         if meta.is_dir() {
-            let results = run_all(opts.path.clone(), opts.lang)?;
-            for result in results {
-                save_one(result, opts.lang, &opts.path, &opts.out, true)?;
+            for result in run_all(opts.path.clone(), opts.lang)? {
+                let out = result.path.clone();
+                save_one(
+                    result,
+                    &format_path(&out, &base_dir, &out_dir, opts.lang, true)?,
+                )?;
             }
         } else {
             let result = run_one(opts.path.clone(), opts.lang)?;
-            save_one(result, opts.lang, &opts.path, &opts.out, false)?;
+            let out = result.path.clone();
+            save_one(
+                result,
+                &format_path(&out, &base_dir, &out_dir, opts.lang, false)?,
+            )?;
         }
     }
 
