@@ -170,15 +170,24 @@ fn resolve_struct_field<'a>(
     fname: &'a str,
     fty: ast::Unresolved<'a>,
     resolved: &HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>>,
-) -> Option<StructField<'a>> {
+    ttypename: &'a str,
+) -> Result<Option<StructField<'a>>, String> {
     match resolved.get(&fty.0) {
-        Some(rty) => Some(StructField {
-            name: fname,
-            r#type: rty.clone(),
-            array: fty.1,
-            optional: fty.2,
-        }),
-        None => None,
+        Some(rty) => {
+            if fty.1 && fty.2 {
+                return Err(format!(
+                    "Field '{}' in struct '{}' cannot be optional and array at once",
+                    fname, ttypename
+                ));
+            }
+            Ok(Some(StructField {
+                name: fname,
+                r#type: rty.clone(),
+                array: fty.1,
+                optional: fty.2,
+            }))
+        }
+        None => Ok(None),
     }
 }
 
@@ -226,9 +235,9 @@ fn resolve_one_first_pass<'a>(
 ) -> Result<(), String> {
     match ty {
         ast::Type::Enum(e) => {
-            match resolve_enum(&name, e) {
+            match resolve_enum(name, e) {
                 Ok(rty) => {
-                    unresolved.remove(&name);
+                    unresolved.remove(name);
                     first_pass.insert(
                         name,
                         Ptr::new((
@@ -251,7 +260,7 @@ fn resolve_one_first_pass<'a>(
                     return Err(format!("Duplicate field '{}' on struct '{}'", fname, name));
                 }
                 field_names.insert(fname);
-                if let Some(field) = resolve_struct_field(fname, fty.clone(), builtins) {
+                if let Some(field) = resolve_struct_field(fname, fty.clone(), builtins, name)? {
                     fields.push(field);
                 } else {
                     break;
@@ -312,7 +321,8 @@ fn resolve_one_second_pass<'a>(
         let mut not_resolved = Vec::new();
         let mut fields = Vec::new();
         for (field_name, field_type) in s.0.into_iter() {
-            if let Some(field) = resolve_struct_field(field_name, field_type.clone(), cache) {
+            if let Some(field) = resolve_struct_field(field_name, field_type.clone(), cache, name)?
+            {
                 fields.push(field);
             } else {
                 not_resolved.push((field_name, field_type));
@@ -345,11 +355,10 @@ fn resolve_one_second_pass<'a>(
             }
             // if we get here, it means all the field's types were successfully resolved and placed in the cache
             // so finish resolving our fields
-            let now_resolved = not_resolved
-                .into_iter()
-                .map(|(fname, fty)| resolve_struct_field(fname, fty, cache))
-                .map(|f| f.unwrap())
-                .collect::<Vec<StructField>>();
+            let mut now_resolved = Vec::new();
+            for (fname, fty) in not_resolved.into_iter() {
+                now_resolved.push(resolve_struct_field(fname, fty, cache, name)?.unwrap());
+            }
             // and we have a complete type
             cache.insert(
                 name,
@@ -531,6 +540,23 @@ mod tests {
         assert_eq!(
             type_check(test).unwrap_err(),
             "Enum 'Flag' must have at least one variant"
+        );
+    }
+
+    #[test]
+    fn optional_and_array() {
+        // field cannot be optional and array at once
+        use ast::*;
+        let test: AST = vec![
+            Node::Decl(
+                "Test",
+                Type::Struct(Struct(vec![("a", Unresolved("uint8", true, true))])),
+            ),
+            Node::Export("Test"),
+        ];
+        assert_eq!(
+            type_check(test).unwrap_err(),
+            "Field 'a' in struct 'Test' cannot be optional and array at once"
         );
     }
 
