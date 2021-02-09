@@ -214,13 +214,33 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
     append!(ctx.out, "{}}}\n", ctx.indentation);
 }
 
+// awful hack
+// TODO: make write_impls the same as in gen::ts
+fn is_resolvedtype_struct_variant(ty: &check::ResolvedType) -> bool {
+    std::mem::discriminant(ty)
+        == std::mem::discriminant(&check::ResolvedType::Struct(check::Struct {
+            fields: Vec::new(),
+        }))
+}
+
 fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
     for field in &type_info.fields {
         ctx.push_fname(field.name);
+        let field_type = &*field.r#type.borrow();
         let mut old_stack = if field.optional {
             let fname = fname(&ctx.stack);
             let bind_var = bindname(&ctx.stack);
-            append!(ctx.out, "{}match {} {{\n", ctx.indentation, fname);
+            append!(
+                ctx.out,
+                "{}match {}{} {{\n",
+                ctx.indentation,
+                if is_resolvedtype_struct_variant(&field_type.1) {
+                    "&"
+                } else {
+                    ""
+                },
+                fname
+            );
             ctx.push_indent();
             append!(
                 ctx.out,
@@ -240,7 +260,6 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
             None
         };
 
-        let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
                 gen_write_impl_builtin_array(ctx, &field_type_info, &field_type.0)
@@ -1386,7 +1405,7 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
             writer.write_uint8(input_opt_enum as u8);
         }
     }
-    match input.opt_struct {
+    match &input.opt_struct {
         None => writer.write_uint8(0u8),
         Some(input_opt_struct) => {
             writer.write_uint8(1u8);
