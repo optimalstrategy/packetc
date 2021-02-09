@@ -81,6 +81,7 @@ pub struct StructField<'a> {
     pub name: &'a str,
     pub r#type: Ptr<(&'a str, ResolvedType<'a>)>,
     pub array: bool,
+    pub optional: bool,
 }
 #[derive(Clone, PartialEq, Debug)]
 pub struct Struct<'a> {
@@ -175,6 +176,7 @@ fn resolve_struct_field<'a>(
             name: fname,
             r#type: rty.clone(),
             array: fty.1,
+            optional: fty.2,
         }),
         None => None,
     }
@@ -474,6 +476,7 @@ mod tests {
     use std::vec;
 
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn type_check_passes() {
@@ -484,26 +487,26 @@ mod tests {
             Node::Decl(
                 "Position",
                 Type::Struct(Struct(vec![
-                    ("x", Unresolved("float", false)),
-                    ("y", Unresolved("float", false)),
+                    ("x", Unresolved("float", false, false)),
+                    ("y", Unresolved("float", false, false)),
                 ])),
             ),
             Node::Decl(
                 "Value",
                 Type::Struct(Struct(vec![
-                    ("a", Unresolved("uint32", false)),
-                    ("b", Unresolved("int32", false)),
-                    ("c", Unresolved("uint8", false)),
-                    ("d", Unresolved("uint8", false)),
+                    ("a", Unresolved("uint32", false, false)),
+                    ("b", Unresolved("int32", false, false)),
+                    ("c", Unresolved("uint8", false, false)),
+                    ("d", Unresolved("uint8", false, false)),
                 ])),
             ),
             Node::Decl(
                 "ComplexType",
                 Type::Struct(Struct(vec![
-                    ("flag", Unresolved("Flag", false)),
-                    ("pos", Unresolved("Position", false)),
-                    ("names", Unresolved("string", true)),
-                    ("values", Unresolved("Value", true)),
+                    ("flag", Unresolved("Flag", false, false)),
+                    ("pos", Unresolved("Position", false, false)),
+                    ("names", Unresolved("string", true, false)),
+                    ("values", Unresolved("Value", true, false)),
                 ])),
             ),
             Node::Export("ComplexType"),
@@ -521,7 +524,7 @@ mod tests {
             Node::Decl("Flag", Type::Enum(Enum(vec![]))),
             Node::Decl(
                 "Test",
-                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false, false))])),
             ),
             Node::Export("Test"),
         ];
@@ -539,8 +542,8 @@ mod tests {
             Node::Decl(
                 "Position",
                 Type::Struct(Struct(vec![
-                    ("x", Unresolved("float", false)),
-                    ("y", Unresolved("float", false)),
+                    ("x", Unresolved("float", false, false)),
+                    ("y", Unresolved("float", false, false)),
                 ])),
             ),
             Node::Export("Position"),
@@ -559,8 +562,8 @@ mod tests {
         let test: AST = vec![Node::Decl(
             "Position",
             Type::Struct(Struct(vec![
-                ("x", Unresolved("float", false)),
-                ("y", Unresolved("float", false)),
+                ("x", Unresolved("float", false, false)),
+                ("y", Unresolved("float", false, false)),
             ])),
         )];
         assert_eq!(type_check(test).unwrap_err(), "Schema has no export");
@@ -573,7 +576,7 @@ mod tests {
             Node::Decl("Flag", Type::Enum(Enum(vec!["A", "A"]))),
             Node::Decl(
                 "Test",
-                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false, false))])),
             ),
             Node::Export("Test"),
         ];
@@ -591,8 +594,8 @@ mod tests {
             Node::Decl(
                 "Position",
                 Type::Struct(Struct(vec![
-                    ("x", Unresolved("float", false)),
-                    ("x", Unresolved("float", false)),
+                    ("x", Unresolved("float", false, false)),
+                    ("x", Unresolved("float", false, false)),
                 ])),
             ),
             Node::Export("Position"),
@@ -611,15 +614,15 @@ mod tests {
             Node::Decl(
                 "Position",
                 Type::Struct(Struct(vec![
-                    ("x", Unresolved("float", false)),
-                    ("y", Unresolved("float", false)),
+                    ("x", Unresolved("float", false, false)),
+                    ("y", Unresolved("float", false, false)),
                 ])),
             ),
             Node::Decl(
                 "Position",
                 Type::Struct(Struct(vec![
-                    ("x", Unresolved("float", false)),
-                    ("y", Unresolved("float", false)),
+                    ("x", Unresolved("float", false, false)),
+                    ("y", Unresolved("float", false, false)),
                 ])),
             ),
             Node::Export("Position"),
@@ -649,7 +652,7 @@ mod tests {
             ),
             Node::Decl(
                 "Test",
-                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false, false))])),
             ),
             Node::Export("Test"),
         ];
@@ -667,7 +670,7 @@ mod tests {
         let test: AST = vec![
             Node::Decl(
                 "Test",
-                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
+                Type::Struct(Struct(vec![("flag", Unresolved("Flag", false, false))])),
             ),
             Node::Export("Test"),
         ];
@@ -683,17 +686,17 @@ mod tests {
         let test = vec![
             Node::Decl(
                 "A",
-                Type::Struct(Struct(vec![("b", Unresolved("int32", false))])),
+                Type::Struct(Struct(vec![("b", Unresolved("int32", false, false))])),
             ),
             Node::Decl(
                 "B",
-                Type::Struct(Struct(vec![("a", Unresolved("A", false))])),
+                Type::Struct(Struct(vec![("a", Unresolved("A", false, false))])),
             ),
             Node::Decl(
                 "D",
                 Type::Struct(Struct(vec![
-                    ("b1", Unresolved("B", false)),
-                    ("b2", Unresolved("B", false)),
+                    ("b1", Unresolved("B", false, false)),
+                    ("b2", Unresolved("B", false, false)),
                 ])),
             ),
             Node::Export("D"),
@@ -710,12 +713,12 @@ mod tests {
             vec![
                 Node::Decl(
                     "UnusedType",
-                    Type::Struct(Struct(vec![("test", Unresolved("uint8", false))])),
+                    Type::Struct(Struct(vec![("test", Unresolved("uint8", false, false))])),
                 ),
                 Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
                 Node::Decl(
                     "Test",
-                    Type::Struct(Struct(vec![("flag", Unresolved("Flag", false))])),
+                    Type::Struct(Struct(vec![("flag", Unresolved("Flag", false, false))])),
                 ),
                 Node::Export("Test"),
             ]
@@ -732,15 +735,15 @@ mod tests {
             Node::Decl("Flag", Type::Enum(Enum(vec!["A", "B"]))),
             Node::Decl(
                 "TestA",
-                Type::Struct(Struct(vec![("test", Unresolved("Flag", false))])),
+                Type::Struct(Struct(vec![("test", Unresolved("Flag", false, false))])),
             ),
             Node::Decl(
                 "TestB",
-                Type::Struct(Struct(vec![("test", Unresolved("TestA", false))])),
+                Type::Struct(Struct(vec![("test", Unresolved("TestA", false, false))])),
             ),
             Node::Decl(
                 "TestC",
-                Type::Struct(Struct(vec![("test", Unresolved("TestB", false))])),
+                Type::Struct(Struct(vec![("test", Unresolved("TestB", false, false))])),
             ),
             Node::Export("TestC"),
         ];
@@ -754,7 +757,7 @@ mod tests {
         let test: AST = vec![
             Node::Decl(
                 "Test",
-                Type::Struct(Struct(vec![("test", Unresolved("Test", false))])),
+                Type::Struct(Struct(vec![("test", Unresolved("Test", false, false))])),
             ),
             Node::Export("Test"),
         ];

@@ -13,6 +13,7 @@ chrono = { version = "0.4" }
 thiserror = { version = "1.0" }
 anyhow = "1.0.38"
 clap = { version = "3.0.0-beta.2" }
+pretty_assertions = "0.6.1"
 
 [lib]
 name = "packetc_lib"

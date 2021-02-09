@@ -66,6 +66,10 @@ fn varname(stack: &[String], name: &str) -> String {
     format!("{}_{}", stack.join("_"), name)
 }
 
+fn bindname(stack: &[String]) -> String {
+    stack.join("_")
+}
+
 fn fname(stack: &[String]) -> String {
     stack.join(".")
 }
@@ -259,6 +263,36 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
 fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
     for field in &type_info.fields {
         ctx.push_fname(field.name);
+        let mut old_stack = if field.optional {
+            let fname = fname(&ctx.stack);
+            let bind_var = bindname(&ctx.stack);
+            append!(
+                ctx.out,
+                "{}let {} = {};\n",
+                ctx.indentation,
+                bind_var,
+                fname
+            );
+            append!(ctx.out, "{}switch ({}) {{\n", ctx.indentation, bind_var);
+            ctx.push_indent();
+            append!(
+                ctx.out,
+                "{}case null: writer.write_uint8(0); break;\n",
+                ctx.indentation
+            );
+            append!(ctx.out, "{}default: {{\n", ctx.indentation);
+            ctx.push_indent();
+            append!(ctx.out, "{}writer.write_uint8(1);\n", ctx.indentation);
+
+            let mut old_stack = Vec::new();
+            ctx.swap_stack(&mut old_stack);
+            ctx.push_fname(bind_var);
+
+            Some(old_stack)
+        } else {
+            None
+        };
+
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
@@ -279,6 +313,15 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
             check::ResolvedType::Struct(field_type_info) => {
                 gen_write_impl_struct(ctx, &field_type_info, &field_type.0)
             }
+        }
+
+        if old_stack.is_some() {
+            ctx.swap_stack(old_stack.as_mut().unwrap());
+
+            ctx.pop_indent();
+            append!(ctx.out, "{}}}\n", ctx.indentation);
+            ctx.pop_indent();
+            append!(ctx.out, "{}}}\n", ctx.indentation);
         }
         ctx.pop_fname();
     }
@@ -543,6 +586,15 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &
 fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
     for field in &type_info.fields {
         ctx.push_fname(field.name);
+        if field.optional {
+            append!(
+                ctx.out,
+                "{}if (reader.read_uint8() > 0) {{\n",
+                ctx.indentation
+            );
+            ctx.push_indent();
+        }
+
         let field_type = &*field.r#type.borrow();
         match &field_type.1 {
             check::ResolvedType::Builtin(field_type_info) if field.array => {
@@ -563,6 +615,11 @@ fn gen_read_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
             check::ResolvedType::Struct(field_type_info) => {
                 gen_read_impl_struct(ctx, &field_type_info, &field_type.0)
             }
+        }
+
+        if field.optional {
+            ctx.pop_indent();
+            append!(ctx.out, "{}}}\n", ctx.indentation);
         }
         ctx.pop_fname();
     }
@@ -596,11 +653,14 @@ impl<'a> Definition<TypeScript> for check::Struct<'a> {
                 },
                 _ => &type_info.0,
             };
-            if field.array {
-                append!(out, "    {}: {}[],\n", field.name, typename);
-            } else {
-                append!(out, "    {}: {},\n", field.name, typename);
-            }
+            append!(
+                out,
+                "    {}{}: {}{},\n",
+                field.name,
+                if field.optional { "?" } else { "" },
+                typename,
+                if field.array { "[]" } else { "" }
+            );
         }
         append!(out, "}}\n");
     }
@@ -651,6 +711,7 @@ impl<'a> Definition<TypeScript> for check::Enum<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     #[test]
     fn commmon_gen() {
@@ -675,11 +736,13 @@ import { Reader, Writer } from \"packet\";
                     name: "x",
                     r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
+                    optional: false,
                 },
                 StructField {
                     name: "y",
                     r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
+                    optional: false,
                 },
             ],
         };
@@ -693,6 +756,47 @@ import { Reader, Writer } from \"packet\";
 export interface Position {
     x: number,
     y: number,
+}
+"
+        );
+    }
+
+    #[test]
+    fn struct_with_optional_gen() {
+        use check::*;
+        let test = Struct {
+            fields: vec![
+                StructField {
+                    name: "a",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
+                    array: false,
+                    optional: true,
+                },
+                StructField {
+                    name: "b",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
+                    array: true,
+                    optional: true,
+                },
+                StructField {
+                    name: "c",
+                    r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
+                    array: false,
+                    optional: false,
+                },
+            ],
+        };
+        let mut gen = Generator::<TypeScript>::new();
+        gen.push_line();
+        gen.push_def("Test", &test);
+        let actual = gen.finish();
+        assert_eq!(
+            actual,
+            "
+export interface Test {
+    a?: number,
+    b?: number[],
+    c: number,
 }
 "
         );
@@ -744,21 +848,25 @@ function Flag_try_from(value: number): Flag {
                         name: "builtin_scalar",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "builtin_array",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "string_scalar",
                         r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "string_array",
                         r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "enum_scalar",
@@ -770,6 +878,7 @@ function Flag_try_from(value: number): Flag {
                             }),
                         )),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "enum_array",
@@ -781,6 +890,7 @@ function Flag_try_from(value: number): Flag {
                             }),
                         )),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "struct_scalar",
@@ -789,6 +899,7 @@ function Flag_try_from(value: number): Flag {
                             ResolvedType::Struct(Struct { fields: vec![] }),
                         )),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "struct_array",
@@ -797,6 +908,7 @@ function Flag_try_from(value: number): Flag {
                             ResolvedType::Struct(Struct { fields: vec![] }),
                         )),
                         array: true,
+                        optional: false,
                     },
                 ],
             },
@@ -823,6 +935,119 @@ export interface Test {
     }
 
     #[test]
+    fn optional_write_gen() {
+        use check::*;
+        let test = Export {
+            name: "Test",
+            r#struct: Struct {
+                fields: vec![
+                    StructField {
+                        name: "a",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "b",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: true,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "c",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: false,
+                    },
+                ],
+            },
+        };
+        let mut gen = Generator::<TypeScript>::new();
+        gen.push_line();
+        gen.push_write_impl("Test", &test);
+        let actual = gen.finish();
+        assert_eq!(
+            actual,
+            "
+export function write(writer: Writer, input: Test) {
+    let input_a = input.a;
+    switch (input_a) {
+        case null: writer.write_uint8(0); break;
+        default: {
+            writer.write_uint8(1);
+            writer.write_uint8(input_a);
+        }
+    }
+    let input_b = input.b;
+    switch (input_b) {
+        case null: writer.write_uint8(0); break;
+        default: {
+            writer.write_uint8(1);
+            writer.write_uint32(input_b.length);
+            for (let input_b_item of input_b) {
+                writer.write_uint8(input_b_item);
+            }
+        }
+    }
+    writer.write_uint8(input.c);
+}
+"
+        );
+    }
+
+    #[test]
+    fn optional_read_gen() {
+        use check::*;
+        let test = Export {
+            name: "Test",
+            r#struct: Struct {
+                fields: vec![
+                    StructField {
+                        name: "a",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "b",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: true,
+                        optional: true,
+                    },
+                    StructField {
+                        name: "c",
+                        r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
+                        array: false,
+                        optional: false,
+                    },
+                ],
+            },
+        };
+        let mut gen = Generator::<TypeScript>::new();
+        gen.push_line();
+        gen.push_read_impl("Test", &test);
+        let actual = gen.finish();
+        assert_eq!(
+            actual,
+            "
+export function read(reader: Reader, output: Test) {
+    if (reader.read_uint8() > 0) {
+        output.a = reader.read_uint8();
+    }
+    if (reader.read_uint8() > 0) {
+        let output_b_len = reader.read_uint32();
+        output.b = new Array(output_b_len);
+        for (let output_b_index = 0; output_b_index < output_b_len; ++output_b_index) {
+            output.b[output_b_index] = reader.read_uint8();
+        }
+    }
+    output.c = reader.read_uint8();
+}
+"
+        );
+    }
+
+    #[test]
     fn nested_soa_write_gen() {
         use check::*;
         let test_a = Struct {
@@ -831,11 +1056,13 @@ export interface Test {
                     name: "first",
                     r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
+                    optional: false,
                 },
                 StructField {
                     name: "second",
                     r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
+                    optional: false,
                 },
             ],
         };
@@ -846,6 +1073,7 @@ export interface Test {
                     name: "test_a",
                     r#type: Ptr::new(("TestA", ResolvedType::Struct(test_a))),
                     array: true,
+                    optional: false,
                 }],
             },
         };
@@ -882,11 +1110,13 @@ export function write(writer: Writer, input: TestB) {
                     name: "first",
                     r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
+                    optional: false,
                 },
                 StructField {
                     name: "second",
                     r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                     array: true,
+                    optional: false,
                 },
             ],
         };
@@ -897,6 +1127,7 @@ export function write(writer: Writer, input: TestB) {
                     name: "test_a",
                     r#type: Ptr::new(("TestA", ResolvedType::Struct(test_a))),
                     array: true,
+                    optional: false,
                 }],
             },
         };
@@ -951,11 +1182,13 @@ export function read(reader: Reader, output: TestB) {
                     name: "x",
                     r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
+                    optional: false,
                 },
                 StructField {
                     name: "y",
                     r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
+                    optional: false,
                 },
             ],
         };
@@ -967,41 +1200,49 @@ export function read(reader: Reader, output: TestB) {
                         name: "builtin_scalar",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "builtin_array",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "string_scalar",
                         r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "string_array",
                         r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "enum_scalar",
                         r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "enum_array",
                         r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "struct_scalar",
                         r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "struct_array",
                         r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
                         array: true,
+                        optional: false,
                     },
                 ],
             },
@@ -1065,11 +1306,13 @@ export function write(writer: Writer, input: Test) {
                     name: "x",
                     r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
+                    optional: false,
                 },
                 StructField {
                     name: "y",
                     r#type: Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
                     array: false,
+                    optional: false,
                 },
             ],
         };
@@ -1081,41 +1324,49 @@ export function write(writer: Writer, input: Test) {
                         name: "builtin_scalar",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "builtin_array",
                         r#type: Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "string_scalar",
                         r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "string_array",
                         r#type: Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "enum_scalar",
                         r#type: Ptr::new(("Flag", ResolvedType::Enum(flag.clone()))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "enum_array",
                         r#type: Ptr::new(("Flag", ResolvedType::Enum(flag))),
                         array: true,
+                        optional: false,
                     },
                     StructField {
                         name: "struct_scalar",
                         r#type: Ptr::new(("Position", ResolvedType::Struct(position.clone()))),
                         array: false,
+                        optional: false,
                     },
                     StructField {
                         name: "struct_array",
                         r#type: Ptr::new(("Position", ResolvedType::Struct(position))),
                         array: true,
+                        optional: false,
                     },
                 ],
             },

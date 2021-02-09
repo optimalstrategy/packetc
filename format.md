@@ -51,7 +51,7 @@ Symbols are declared as `identifier: type`, where `type` is any of:
 
 Comments start with #, and are only single-line.
 
-```
+```s
 # This is a comment.
 # Below is what a fairly complex packet may look like
 Flag: enum { A, B }
@@ -63,7 +63,9 @@ ComplexType: struct {
     flag: Flag,
     positions: Position[],
     names: string[],
-    values: Value[]
+    values: Value[],
+    # Optional types exist, too
+    test?: uint8,
 }
 
 export ComplexType
@@ -83,6 +85,25 @@ The general idea is:
 
 Currently, the compiler is fully functional. It can compile schemas into Rust and TypeScript code, which depends on the corresponding [`packet-rs`](https://github.com/EverCrawl/packet-rs) and [`packet-ts`](https://github.com/EverCrawl/packet-ts) libraries.
 
-* Parser: 100%
-* Type-checker: 100%
-* Generator: 100%
+**Notes**
+
+Recursive types are not possible. This is because besides arrays,
+there is no other form of indirection.
+```s
+T: struct {
+    v: T # Error
+}
+
+export T
+```
+
+It's currently not possible to have optional array fields, such as:
+```s
+T: struct {
+    opt?: A[] # This is an error
+}
+
+export T
+```
+It's on the to-do list, but not a high priority, because you can always
+represent such a scenario with a flag.

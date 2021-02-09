@@ -4,9 +4,9 @@
 //! definitions, unknown types, etc.
 /// Unresolved is an "unchecked" type, which may be an array type
 ///
-/// (identifier, is_array)
+/// (identifier, is_array, is_optional)
 #[derive(Clone, PartialEq, Debug)]
-pub struct Unresolved<'a>(pub &'a str, pub bool);
+pub struct Unresolved<'a>(pub &'a str, pub bool, pub bool);
 /// Enum is just a list of its variants, which are plain strings
 #[derive(Clone, PartialEq, Debug)]
 pub struct Enum<'a>(pub Vec<&'a str>);

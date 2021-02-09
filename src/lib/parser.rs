@@ -45,9 +45,12 @@ peg::parser!(pub grammar pkt() for str {
     rule enum_type() -> Enum<'input>
         = _ "enum" _ "{" ___ variants:(enum_variant()*) ___ "}" { Enum(variants) }
 
+    rule is_optional() -> bool
+        = o:("?"?) { o.is_some() }
+
     rule struct_field() -> Option<(&'input str, Unresolved<'input>)>
         = comment() ___ { None }
-        / i:ident() _ ":" _ t:string() a:("[]"?) ___ ","? ___ { Some((i, Unresolved(t, a.is_some()))) }
+        / i:ident() _ opt:is_optional() ":" _ t:string() a:("[]"?) ___ ","? ___ { Some((i, Unresolved(t, a.is_some(), opt))) }
 
     /// Parses a struct in the from `identifier: struct { name: type or type[], ... }
     rule struct_type() -> Struct<'input>
@@ -90,6 +93,7 @@ peg::parser!(pub grammar pkt() for str {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     use peg::str::LineCol;
 
@@ -214,7 +218,7 @@ mod tests {
         .build();
         let expected: AST = vec![Node::Decl(
             "a",
-            Type::Struct(Struct(vec![("v", Unresolved("uint8", false))])),
+            Type::Struct(Struct(vec![("v", Unresolved("uint8", false, false))])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
     }
@@ -234,8 +238,8 @@ mod tests {
         let expected: AST = vec![Node::Decl(
             "a",
             Type::Struct(Struct(vec![
-                ("a", Unresolved("uint8", false)),
-                ("b", Unresolved("uint8", false)),
+                ("a", Unresolved("uint8", false, false)),
+                ("b", Unresolved("uint8", false, false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -262,8 +266,8 @@ mod tests {
         let expected: AST = vec![Node::Decl(
             "asdf",
             Type::Struct(Struct(vec![
-                ("x", Unresolved("float", false)),
-                ("y", Unresolved("float", false)),
+                ("x", Unresolved("float", false, false)),
+                ("y", Unresolved("float", false, false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -281,8 +285,8 @@ mod tests {
         let expected: AST = vec![Node::Decl(
             "asdf",
             Type::Struct(Struct(vec![
-                ("a", Unresolved("A", false)),
-                ("b", Unresolved("B", false)),
+                ("a", Unresolved("A", false, false)),
+                ("b", Unresolved("B", false, false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -300,8 +304,29 @@ mod tests {
         let expected: AST = vec![Node::Decl(
             "asdf",
             Type::Struct(Struct(vec![
-                ("a", Unresolved("A", true)),
-                ("b", Unresolved("B", true)),
+                ("a", Unresolved("A", true, false)),
+                ("b", Unresolved("B", true, false)),
+            ])),
+        )];
+        assert_eq!(pkt::schema(&test).unwrap(), expected);
+    }
+
+    #[test]
+    fn parse_struct_with_optional() {
+        let test = r#"
+        asdf: struct {
+            a?: A[],
+            b?: B,
+            c: C
+        }
+        "#
+        .build();
+        let expected: AST = vec![Node::Decl(
+            "asdf",
+            Type::Struct(Struct(vec![
+                ("a", Unresolved("A", true, true)),
+                ("b", Unresolved("B", false, true)),
+                ("c", Unresolved("C", false, false)),
             ])),
         )];
         assert_eq!(pkt::schema(&test).unwrap(), expected);
@@ -341,26 +366,26 @@ mod tests {
             Node::Decl(
                 "Position",
                 Type::Struct(Struct(vec![
-                    ("x", Unresolved("float", false)),
-                    ("y", Unresolved("float", false)),
+                    ("x", Unresolved("float", false, false)),
+                    ("y", Unresolved("float", false, false)),
                 ])),
             ),
             Node::Decl(
                 "Value",
                 Type::Struct(Struct(vec![
-                    ("a", Unresolved("uint32", false)),
-                    ("b", Unresolved("int32", false)),
-                    ("c", Unresolved("uint8", false)),
-                    ("d", Unresolved("uint8", false)),
+                    ("a", Unresolved("uint32", false, false)),
+                    ("b", Unresolved("int32", false, false)),
+                    ("c", Unresolved("uint8", false, false)),
+                    ("d", Unresolved("uint8", false, false)),
                 ])),
             ),
             Node::Decl(
                 "ComplexType",
                 Type::Struct(Struct(vec![
-                    ("flag", Unresolved("Flag", false)),
-                    ("pos", Unresolved("Position", false)),
-                    ("names", Unresolved("string", true)),
-                    ("values", Unresolved("Value", true)),
+                    ("flag", Unresolved("Flag", false, false)),
+                    ("pos", Unresolved("Position", false, false)),
+                    ("names", Unresolved("string", true, false)),
+                    ("values", Unresolved("Value", true, false)),
                 ])),
             ),
             Node::Export("ComplexType"),
