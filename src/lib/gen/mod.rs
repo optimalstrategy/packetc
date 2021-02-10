@@ -2,10 +2,10 @@ pub mod impl_ctx;
 pub mod rust;
 pub mod ts;
 
-use std::fmt::Write;
-
 use super::*;
+use fstrings::format_args_f;
 use impl_ctx::ImplCtx;
+use std::fmt::Write;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
@@ -35,9 +35,9 @@ where
 
 #[macro_export]
 macro_rules! append {
-    ($dst:expr, $($arg:tt)*) => (write!($dst, $($arg)*).unwrap());
+    ($dst:expr, $($arg:tt)*) => (fstrings::write_f!($dst, $($arg)*).unwrap());
 
-    ($dst:expr, $arg:expr) => (write!($dst, "{}", $arg).unwrap());
+    ($dst:expr, $arg:expr) => (fstrings::write_f!($dst, "{}", $arg).unwrap());
 }
 
 pub trait Language {}

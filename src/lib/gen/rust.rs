@@ -1,4 +1,5 @@
 use super::*;
+use fstrings::format_args_f;
 use std::collections::HashSet;
 
 #[derive(Clone, PartialEq, Debug, Default)]
@@ -33,17 +34,12 @@ fn gen_write_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, t
     let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}writer.write_uint32({}.len() as u32);\n",
-        ctx.indentation,
-        fname
+        "{ctx.indentation}writer.write_uint32({fname}.len() as u32);\n"
     );
     let item_var = varname(&ctx.stack, "item");
     append!(
         ctx.out,
-        "{}for {} in {}.iter() {{\n",
-        ctx.indentation,
-        item_var,
-        fname
+        "{ctx.indentation}for {item_var} in {fname}.iter() {{\n"
     );
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
@@ -54,29 +50,22 @@ fn gen_write_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, t
         check::Builtin::String => {
             append!(
                 ctx.out,
-                "{}writer.write_uint32({}.len() as u32);\n",
-                ctx.indentation,
-                item_var
+                "{ctx.indentation}writer.write_uint32({item_var}.len() as u32);\n"
             );
             append!(
                 ctx.out,
-                "{}writer.write_string(&{});\n",
-                ctx.indentation,
-                item_var
+                "{ctx.indentation}writer.write_string(&{item_var});\n"
             );
         }
         _ => append!(
             ctx.out,
-            "{}writer.write_{}({});\n",
-            ctx.indentation,
-            type_name,
-            item_var
+            "{ctx.indentation}writer.write_{type_name}({item_var});\n"
         ),
     }
 
     ctx.swap_stack(&mut old_stack);
     ctx.pop_indent();
-    append!(ctx.out, "{}}}\n", ctx.indentation);
+    append!(ctx.out, "{ctx.indentation}}}\n");
 }
 
 fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
@@ -85,23 +74,13 @@ fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_na
         check::Builtin::String => {
             append!(
                 ctx.out,
-                "{}writer.write_uint32({}.len() as u32);\n",
-                ctx.indentation,
-                fname
+                "{ctx.indentation}writer.write_uint32({fname}.len() as u32);\n"
             );
-            append!(
-                ctx.out,
-                "{}writer.write_string(&{});\n",
-                ctx.indentation,
-                fname
-            );
+            append!(ctx.out, "{ctx.indentation}writer.write_string(&{fname});\n");
         }
         _ => append!(
             ctx.out,
-            "{}writer.write_{}({});\n",
-            ctx.indentation,
-            type_name,
-            fname,
+            "{ctx.indentation}writer.write_{type_name}({fname});\n"
         ),
     }
 }
@@ -110,17 +89,12 @@ fn gen_write_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str
     let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}writer.write_uint32({}.len() as u32);\n",
-        ctx.indentation,
-        fname
+        "{ctx.indentation}writer.write_uint32({fname}.len() as u32);\n"
     );
     let item_var = varname(&ctx.stack, "item");
     append!(
         ctx.out,
-        "{}for {} in {}.iter() {{\n",
-        ctx.indentation,
-        item_var,
-        fname
+        "{ctx.indentation}for {item_var} in {fname}.iter() {{\n"
     );
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
@@ -132,18 +106,15 @@ fn gen_write_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
+    let ifname = self::fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}writer.write_{}({} as {});\n",
-        ctx.indentation,
-        repr_name,
-        self::fname(&ctx.stack),
-        type_info.repr,
+        "{ctx.indentation}writer.write_{repr_name}({ifname} as {type_info.repr});\n"
     );
 
     ctx.swap_stack(&mut old_stack);
     ctx.pop_indent();
-    append!(ctx.out, "{}}}\n", ctx.indentation);
+    append!(ctx.out, "{ctx.indentation}}}\n");
 }
 
 fn gen_write_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str) {
@@ -152,13 +123,10 @@ fn gen_write_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str) {
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
+    let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}writer.write_{}({} as {});\n",
-        ctx.indentation,
-        repr_name,
-        fname(&ctx.stack),
-        type_info.repr,
+        "{ctx.indentation}writer.write_{repr_name}({fname} as {type_info.repr});\n"
     );
 }
 
@@ -166,17 +134,12 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
     let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}writer.write_uint32({}.len() as u32);\n",
-        ctx.indentation,
-        fname
+        "{ctx.indentation}writer.write_uint32({fname}.len() as u32);\n"
     );
     let item_var = varname(&ctx.stack, "item");
     append!(
         ctx.out,
-        "{}for {} in {}.iter() {{\n",
-        ctx.indentation,
-        item_var,
-        fname
+        "{ctx.indentation}for {item_var} in {fname}.iter() {{\n"
     );
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
@@ -211,7 +174,7 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
 
     ctx.swap_stack(&mut old_stack);
     ctx.pop_indent();
-    append!(ctx.out, "{}}}\n", ctx.indentation);
+    append!(ctx.out, "{ctx.indentation}}}\n");
 }
 
 // awful hack
@@ -230,26 +193,20 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
         let mut old_stack = if field.optional {
             let fname = fname(&ctx.stack);
             let bind_var = bindname(&ctx.stack);
-            append!(
-                ctx.out,
-                "{}match {}{} {{\n",
-                ctx.indentation,
-                if is_resolvedtype_struct_variant(&field_type.1) {
-                    "&"
-                } else {
-                    ""
-                },
-                fname
-            );
+            let ref_prefix = if is_resolvedtype_struct_variant(&field_type.1) {
+                "&"
+            } else {
+                ""
+            };
+            append!(ctx.out, "{ctx.indentation}match {ref_prefix}{fname} {{\n");
             ctx.push_indent();
             append!(
                 ctx.out,
-                "{}None => writer.write_uint8(0u8),\n",
-                ctx.indentation
+                "{ctx.indentation}None => writer.write_uint8(0u8),\n"
             );
-            append!(ctx.out, "{}Some({}) => {{\n", ctx.indentation, bind_var);
+            append!(ctx.out, "{ctx.indentation}Some({bind_var}) => {{\n");
             ctx.push_indent();
-            append!(ctx.out, "{}writer.write_uint8(1u8);\n", ctx.indentation);
+            append!(ctx.out, "{ctx.indentation}writer.write_uint8(1u8);\n");
 
             let mut old_stack = Vec::new();
             ctx.swap_stack(&mut old_stack);
@@ -285,9 +242,9 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
             ctx.swap_stack(old_stack.as_mut().unwrap());
 
             ctx.pop_indent();
-            append!(ctx.out, "{}}}\n", ctx.indentation);
+            append!(ctx.out, "{ctx.indentation}}}\n");
             ctx.pop_indent();
-            append!(ctx.out, "{}}}\n", ctx.indentation);
+            append!(ctx.out, "{ctx.indentation}}}\n");
         }
         ctx.pop_fname();
     }
@@ -299,8 +256,7 @@ impl<'a> WriteImpl<Rust> for check::Export<'a> {
         ctx.push_fname("input");
         append!(
             ctx.out,
-            "pub fn write(writer: &mut packet::writer::Writer, input: &{}) {{\n",
-            name,
+            "pub fn write(writer: &mut packet::writer::Writer, input: &{name}) {{\n"
         );
         ctx.push_indent();
         gen_write_impl_struct(&mut ctx, &self.r#struct, &name);
@@ -314,20 +270,12 @@ fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, ty
     let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}let {} = reader.read_uint32()? as usize;\n",
-        ctx.indentation,
-        len_var
+        "{ctx.indentation}let {len_var} = reader.read_uint32()? as usize;\n"
     );
     let out_var = fname.clone();
-    append!(
-        ctx.out,
-        "{}{}.reserve({});\n",
-        ctx.indentation,
-        fname,
-        len_var
-    );
+    append!(ctx.out, "{ctx.indentation}{fname}.reserve({len_var});\n");
     let item_var = varname(&ctx.stack, "item");
-    append!(ctx.out, "{}for _ in 0..{} {{\n", ctx.indentation, len_var);
+    append!(ctx.out, "{ctx.indentation}for _ in 0..{len_var} {{\n");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var);
@@ -338,30 +286,22 @@ fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, ty
             let len_var = varname(&ctx.stack, "len");
             append!(
                 ctx.out,
-                "{}let {} = reader.read_uint32()? as usize;\n",
-                ctx.indentation,
-                len_var
+                "{ctx.indentation}let {len_var} = reader.read_uint32()? as usize;\n"
             );
             append!(
                 ctx.out,
-                "{}{}.push(reader.read_string({})?);\n",
-                ctx.indentation,
-                out_var,
-                len_var
+                "{ctx.indentation}{out_var}.push(reader.read_string({len_var})?);\n"
             );
         }
         _ => append!(
             ctx.out,
-            "{}{}.push(reader.read_{}()?);\n",
-            ctx.indentation,
-            out_var,
-            type_name
+            "{ctx.indentation}{out_var}.push(reader.read_{type_name}()?);\n"
         ),
     }
 
     ctx.swap_stack(&mut old_stack);
     ctx.pop_indent();
-    append!(ctx.out, "{}}}\n", ctx.indentation);
+    append!(ctx.out, "{ctx.indentation}}}\n");
 }
 
 fn gen_read_impl_builtin(
@@ -371,47 +311,39 @@ fn gen_read_impl_builtin(
     optional: bool,
 ) {
     if optional {
-        append!(
-            ctx.out,
-            "{}if reader.read_uint8()? > 0 {{\n",
-            ctx.indentation
-        );
+        append!(ctx.out, "{ctx.indentation}if reader.read_uint8()? > 0 {{\n");
         ctx.push_indent();
     }
 
     match type_info {
         check::Builtin::String => {
             let len_var = varname(&ctx.stack, "len");
+            let fname = fname(&ctx.stack);
             append!(
                 ctx.out,
-                "{}let {} = reader.read_uint32()? as usize;\n",
-                ctx.indentation,
-                len_var
+                "{ctx.indentation}let {len_var} = reader.read_uint32()? as usize;\n"
             );
+            let opt_prefix = if optional { "Some(" } else { "" };
+            let opt_suffix = if optional { ")" } else { "" };
             append!(
                 ctx.out,
-                "{}{} = {}reader.read_string({})?{};\n",
-                ctx.indentation,
-                fname(&ctx.stack),
-                if optional { "Some(" } else { "" },
-                len_var,
-                if optional { ")" } else { "" }
+                "{ctx.indentation}{fname} = {opt_prefix}reader.read_string({len_var})?{opt_suffix};\n"
             );
         }
-        _ => append!(
-            ctx.out,
-            "{}{} = {}reader.read_{}()?{};\n",
-            ctx.indentation,
-            fname(&ctx.stack),
-            if optional { "Some(" } else { "" },
-            type_name,
-            if optional { ")" } else { "" }
-        ),
+        _ => {
+            let fname = fname(&ctx.stack);
+            let opt_prefix = if optional { "Some(" } else { "" };
+            let opt_suffix = if optional { ")" } else { "" };
+            append!(
+                ctx.out,
+                "{ctx.indentation}{fname} = {opt_prefix}reader.read_{type_name}()?{opt_suffix};\n"
+            )
+        }
     }
 
     if optional {
         ctx.pop_indent();
-        append!(ctx.out, "{}}}\n", ctx.indentation);
+        append!(ctx.out, "{ctx.indentation}}}\n");
     }
 }
 
@@ -420,20 +352,12 @@ fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_nam
     let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}let {} = reader.read_uint32()? as usize;\n",
-        ctx.indentation,
-        len_var
+        "{ctx.indentation}let {len_var} = reader.read_uint32()? as usize;\n"
     );
     let out_var = fname.clone();
-    append!(
-        ctx.out,
-        "{}{}.reserve({});\n",
-        ctx.indentation,
-        fname,
-        len_var
-    );
+    append!(ctx.out, "{ctx.indentation}{fname}.reserve({len_var});\n");
     let item_var = varname(&ctx.stack, "item");
-    append!(ctx.out, "{}for _ in 0..{} {{\n", ctx.indentation, len_var);
+    append!(ctx.out, "{ctx.indentation}for _ in 0..{len_var} {{\n");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var);
@@ -446,25 +370,17 @@ fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_nam
     };
     append!(
         ctx.out,
-        "{}{}.push({}::try_from(reader.read_{}()?)?);\n",
-        ctx.indentation,
-        out_var,
-        type_name,
-        repr_name
+        "{ctx.indentation}{out_var}.push({type_name}::try_from(reader.read_{repr_name}()?)?);\n"
     );
 
     ctx.swap_stack(&mut old_stack);
     ctx.pop_indent();
-    append!(ctx.out, "{}}}\n", ctx.indentation);
+    append!(ctx.out, "{ctx.indentation}}}\n");
 }
 
 fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
     if optional {
-        append!(
-            ctx.out,
-            "{}if reader.read_uint8()? > 0 {{\n",
-            ctx.indentation
-        );
+        append!(ctx.out, "{ctx.indentation}if reader.read_uint8()? > 0 {{\n");
         ctx.push_indent();
     }
 
@@ -473,20 +389,17 @@ fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &st
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
+    let fname = fname(&ctx.stack);
+    let opt_prefix = if optional { "Some(" } else { "" };
+    let opt_suffix = if optional { ")" } else { "" };
     append!(
         ctx.out,
-        "{}{} = {}{}::try_from(reader.read_{}()?)?{};\n",
-        ctx.indentation,
-        fname(&ctx.stack),
-        if optional { "Some(" } else { "" },
-        type_name,
-        repr_name,
-        if optional { ")" } else { "" }
+        "{ctx.indentation}{fname} = {opt_prefix}{type_name}::try_from(reader.read_{repr_name}()?)?{opt_suffix};\n"
     );
 
     if optional {
         ctx.pop_indent();
-        append!(ctx.out, "{}}}\n", ctx.indentation);
+        append!(ctx.out, "{ctx.indentation}}}\n");
     }
 }
 
@@ -495,19 +408,11 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type
     let fname = fname(&ctx.stack);
     append!(
         ctx.out,
-        "{}let {} = reader.read_uint32()? as usize;\n",
-        ctx.indentation,
-        len_var
+        "{ctx.indentation}let {len_var} = reader.read_uint32()? as usize;\n"
     );
-    append!(
-        ctx.out,
-        "{}{}.reserve({});\n",
-        ctx.indentation,
-        fname,
-        len_var
-    );
+    append!(ctx.out, "{ctx.indentation}{fname}.reserve({len_var});\n");
     let item_var = varname(&ctx.stack, "item");
-    append!(ctx.out, "{}for _ in 0..{} {{\n", ctx.indentation, len_var);
+    append!(ctx.out, "{ctx.indentation}for _ in 0..{len_var} {{\n");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var.clone());
@@ -515,10 +420,7 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type
 
     append!(
         ctx.out,
-        "{}let mut {} = {}::default();\n",
-        ctx.indentation,
-        item_var,
-        type_name,
+        "{ctx.indentation}let mut {item_var} = {type_name}::default();\n"
     );
     for field in &type_info.fields {
         ctx.push_fname(field.name);
@@ -547,15 +449,10 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, type
     }
 
     ctx.swap_stack(&mut old_stack);
-    append!(
-        ctx.out,
-        "{}{}.push({});\n",
-        ctx.indentation,
-        self::fname(&ctx.stack),
-        item_var
-    );
+    let ifname = self::fname(&ctx.stack);
+    append!(ctx.out, "{ctx.indentation}{ifname}.push({item_var});\n");
     ctx.pop_indent();
-    append!(ctx.out, "{}}}\n", ctx.indentation);
+    append!(ctx.out, "{ctx.indentation}}}\n");
 }
 
 fn gen_read_impl_struct(
@@ -567,18 +464,11 @@ fn gen_read_impl_struct(
     let (old_stack, fname, bind_var) = if optional {
         let fname = fname(&ctx.stack);
         let bind_var = bindname(&ctx.stack);
-        append!(
-            ctx.out,
-            "{}if reader.read_uint8()? > 0 {{\n",
-            ctx.indentation
-        );
+        append!(ctx.out, "{ctx.indentation}if reader.read_uint8()? > 0 {{\n");
         ctx.push_indent();
         append!(
             ctx.out,
-            "{}let mut {} = {}::default();\n",
-            ctx.indentation,
-            bind_var,
-            type_name
+            "{ctx.indentation}let mut {bind_var} = {type_name}::default();\n"
         );
 
         let mut old_stack = Vec::new();
@@ -618,17 +508,11 @@ fn gen_read_impl_struct(
     }
 
     if let Some(mut old_stack) = old_stack {
-        append!(
-            ctx.out,
-            "{}{} = Some({});\n",
-            ctx.indentation,
-            fname,
-            bind_var
-        );
+        append!(ctx.out, "{ctx.indentation}{fname} = Some({bind_var});\n");
 
         ctx.swap_stack(&mut old_stack);
         ctx.pop_indent();
-        append!(ctx.out, "{}}}\n", ctx.indentation);
+        append!(ctx.out, "{ctx.indentation}}}\n");
     }
 }
 
@@ -638,12 +522,11 @@ impl<'a> ReadImpl<Rust> for check::Export<'a> {
         ctx.push_fname("output");
         append!(
             ctx.out,
-            "pub fn read(reader: &mut packet::reader::Reader, output: &mut {}) -> Result<(), packet::Error> {{\n",
-            name
+            "pub fn read(reader: &mut packet::reader::Reader, output: &mut {name}) -> Result<(), packet::Error> {{\n"
         );
         ctx.push_indent();
         gen_read_impl_struct(&mut ctx, &self.r#struct, &name, false);
-        append!(ctx.out, "{}Ok(())\n", ctx.indentation);
+        append!(ctx.out, "{ctx.indentation}Ok(())\n");
         ctx.pop_indent();
         append!(ctx.out, "}}\n");
     }
@@ -672,7 +555,7 @@ fn struct_field_typename(base: &str, array: bool, optional: bool) -> String {
 impl<'a> Definition<Rust> for check::Struct<'a> {
     fn gen_def(&self, _: &mut Rust, name: &str, out: &mut String) {
         append!(out, "#[derive(Clone, PartialEq, Debug, Default)]\n");
-        append!(out, "pub struct {} {{\n", name);
+        append!(out, "pub struct {name} {{\n");
         for field in self.fields.iter() {
             let type_info = &*field.r#type.borrow();
             let mut typename: &str = &type_info.0;
@@ -688,12 +571,8 @@ impl<'a> Definition<Rust> for check::Struct<'a> {
                     check::Builtin::String => "String",
                 };
             }
-            append!(
-                out,
-                "    pub {}: {},\n",
-                field.name,
-                struct_field_typename(typename, field.array, field.optional)
-            );
+            let sftyname = struct_field_typename(typename, field.array, field.optional);
+            append!(out, "    pub {field.name}: {sftyname},\n");
         }
         append!(out, "}}\n");
     }
@@ -701,19 +580,14 @@ impl<'a> Definition<Rust> for check::Struct<'a> {
 
 fn gen_def_enum_default_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut String) {
     let mut indent = String::new();
-    append!(out, "{}impl Default for {} {{\n", indent, name);
+    append!(out, "{indent}impl Default for {name} {{\n");
     indent += "    ";
-    append!(out, "{}fn default() -> Self {{\n", indent);
+    append!(out, "{indent}fn default() -> Self {{\n");
     indent += "    ";
-    append!(
-        out,
-        "{}{}::{}\n",
-        indent,
-        name,
-        ty.variants.first().unwrap().name
-    );
+    let fvname = ty.variants.first().unwrap().name;
+    append!(out, "{indent}{name}::{fvname}\n");
     indent.truncate(indent.len() - 4);
-    append!(out, "{}}}\n", indent);
+    append!(out, "{indent}}}\n");
     append!(out, "}}\n");
 }
 
@@ -722,75 +596,59 @@ fn gen_def_enum_tryfrom_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut Str
     match ty.repr {
         check::EnumRepr::U8 => append!(
             out,
-            "{}impl std::convert::TryFrom<u8> for {} {{\n",
-            indent,
-            name
+            "{indent}impl std::convert::TryFrom<u8> for {name} {{\n"
         ),
         check::EnumRepr::U16 => append!(
             out,
-            "{}impl std::convert::TryFrom<u16> for {} {{\n",
-            indent,
-            name
+            "{indent}impl std::convert::TryFrom<u16> for {name} {{\n"
         ),
         check::EnumRepr::U32 => append!(
             out,
-            "{}impl std::convert::TryFrom<u32> for {} {{\n",
-            indent,
-            name
+            "{indent}impl std::convert::TryFrom<u32> for {name} {{\n"
         ),
     }
     indent += "    ";
-    append!(out, "{}type Error = packet::Error;\n", indent);
+    append!(out, "{indent}type Error = packet::Error;\n");
     match ty.repr {
         check::EnumRepr::U8 => append!(
             out,
-            "{}fn try_from(value: u8) -> Result<Self, Self::Error> {{\n",
-            indent
+            "{indent}fn try_from(value: u8) -> Result<Self, Self::Error> {{\n"
         ),
         check::EnumRepr::U16 => append!(
             out,
-            "{}fn try_from(value: u16) -> Result<Self, Self::Error> {{\n",
-            indent
+            "{indent}fn try_from(value: u16) -> Result<Self, Self::Error> {{\n"
         ),
         check::EnumRepr::U32 => append!(
             out,
-            "{}fn try_from(value: u32) -> Result<Self, Self::Error> {{\n",
-            indent
+            "{indent}fn try_from(value: u32) -> Result<Self, Self::Error> {{\n"
         ),
     }
     indent += "    ";
-    append!(out, "{}match value {{\n", indent);
+    append!(out, "{indent}match value {{\n");
     indent += "    ";
     for variant in &ty.variants {
-        append!(
-            out,
-            "{}{} => Ok({}::{}),\n",
-            indent,
-            1 << variant.value,
-            name,
-            variant.name
-        );
+        let value = 1 << variant.value;
+        append!(out, "{indent}{value} => Ok({name}::{variant.name}),\n");
     }
     append!(
         out,
-        "{}_ => Err(packet::Error::InvalidEnumValue(value as usize, \"{}\"))\n",
-        indent,
-        name
+        "{indent}_ => Err(packet::Error::InvalidEnumValue(value as usize, \"{name}\"))\n"
     );
     indent.truncate(indent.len() - 4);
-    append!(out, "{}}}\n", indent);
+    append!(out, "{indent}}}\n");
     indent.truncate(indent.len() - 4);
-    append!(out, "{}}}\n", indent);
+    append!(out, "{indent}}}\n");
     append!(out, "}}\n");
 }
 
 impl<'a> Definition<Rust> for check::Enum<'a> {
     fn gen_def(&self, _: &mut Rust, name: &str, out: &mut String) {
         append!(out, "#[derive(Clone, Copy, PartialEq, Debug)]\n");
-        append!(out, "#[repr({})]\n", self.repr);
-        append!(out, "pub enum {} {{\n", name);
+        let repr = &self.repr;
+        append!(out, "#[repr({repr})]\n");
+        append!(out, "pub enum {name} {{\n");
         for variant in self.variants.iter() {
-            append!(out, "    {} = 1 << {},\n", variant.name, variant.value);
+            append!(out, "    {variant.name} = 1 << {variant.value},\n");
         }
         append!(out, "}}\n");
         gen_def_enum_default_impl(name, &self, out);

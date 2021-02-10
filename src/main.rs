@@ -1,4 +1,5 @@
 extern crate clap;
+extern crate fstrings;
 extern crate packetc_lib as pkt;
 
 use anyhow::Result;
