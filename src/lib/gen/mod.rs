@@ -40,6 +40,14 @@ macro_rules! append {
     ($dst:expr, $arg:expr) => (fstrings::write_f!($dst, "{}", $arg).unwrap());
 }
 
+#[macro_export]
+macro_rules! cat {
+    ($ctx:expr, $($arg:tt)*) => {{
+        let fmt = fstrings::format_f!($($arg)*);
+        fstrings::write_f!($ctx.out, "{}{}", $ctx.indentation, fmt).unwrap()
+    }};
+}
+
 pub trait Language {}
 
 #[derive(Clone, PartialEq, Debug, Default)]

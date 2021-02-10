@@ -1,3 +1,4 @@
+#![recursion_limit = "256"]
 extern crate clap;
 extern crate fstrings;
 extern crate packetc_lib as pkt;
