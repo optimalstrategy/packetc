@@ -1,8 +1,9 @@
-use super::ast;
 use ast::*;
 
-// TODO: allow specifying max array size -> use it to shrink array len encoding if possible
-// right now, it's uint32 by default, which is very wasteful
+use super::ast;
+
+// TODO: allow specifying max array size -> use it to shrink array len encoding
+// if possible right now, it's uint32 by default, which is very wasteful
 
 peg::parser!(pub grammar pkt() for str {
     /// Parses whitespace
@@ -92,10 +93,10 @@ peg::parser!(pub grammar pkt() for str {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use peg::str::LineCol;
     use pretty_assertions::assert_eq;
 
-    use peg::str::LineCol;
+    use super::*;
 
     // This exists so that test case strings are leading whitespace insensitive
     trait TestCaseString {

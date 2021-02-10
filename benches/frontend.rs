@@ -8,9 +8,7 @@ use test::Bencher;
 const BENCH_INPUT_64KB: &str = "resource/bench64KB.pkt";
 const BENCH_INPUT_512B: &str = "resource/bench512KB.pkt";
 
-fn load_bench(name: &str) -> String {
-    std::fs::read_to_string(name).expect("Unknown bench path")
-}
+fn load_bench(name: &str) -> String { std::fs::read_to_string(name).expect("Unknown bench path") }
 
 #[bench]
 #[ignore]

@@ -3,10 +3,11 @@ extern crate clap;
 extern crate fstrings;
 extern crate packetc_lib as pkt;
 
-use anyhow::Result;
-use clap::Clap;
 use std::path::PathBuf;
 use std::{fs, path::Component, path::Path};
+
+use anyhow::Result;
+use clap::Clap;
 
 #[derive(Clap)]
 #[clap(version = "1.0", author = "Jan P. <honza.spacir1@gmail.com>")]
@@ -100,13 +101,7 @@ fn save_one(schema: Schema, out: &Path) -> Result<()> {
     Ok(())
 }
 
-fn format_path(
-    file: &Path,
-    base_dir: &Path,
-    out_dir: &Path,
-    lang: Lang,
-    preserve_dir: bool,
-) -> Result<PathBuf> {
+fn format_path(file: &Path, base_dir: &Path, out_dir: &Path, lang: Lang, preserve_dir: bool) -> Result<PathBuf> {
     if preserve_dir {
         Ok(out_dir
             .components()
@@ -132,18 +127,12 @@ fn main() -> Result<()> {
         if meta.is_dir() {
             for result in run_all(opts.path.clone(), opts.lang)? {
                 let out = result.path.clone();
-                save_one(
-                    result,
-                    &format_path(&out, &base_dir, &out_dir, opts.lang, true)?,
-                )?;
+                save_one(result, &format_path(&out, &base_dir, &out_dir, opts.lang, true)?)?;
             }
         } else {
             let result = run_one(opts.path.clone(), opts.lang)?;
             let out = result.path.clone();
-            save_one(
-                result,
-                &format_path(&out, &base_dir, &out_dir, opts.lang, false)?,
-            )?;
+            save_one(result, &format_path(&out, &base_dir, &out_dir, opts.lang, false)?)?;
         }
     }
 

@@ -1,9 +1,11 @@
-use super::*;
-use fstrings::format_args_f;
 use std::collections::HashSet;
 
-// TODO: use (proc?) macros or some template syntax to clean up all of this duplicated code.
-// TODO: change all for..of loops to for (i=0;i<len;++i) loops
+use fstrings::format_args_f;
+
+use super::*;
+
+// TODO: use (proc?) macros or some template syntax to clean up all of this
+// duplicated code. TODO: change all for..of loops to for (i=0;i<len;++i) loops
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct TypeScript {
@@ -17,229 +19,161 @@ impl Common for TypeScript {
     }
 }
 
-struct ImplCtx<'a> {
-    indentation: String,
-    out: &'a mut String,
-    stack: Vec<String>,
-}
+fn varname(stack: &[String], name: &str) -> String { format!("{}_{}", stack.join("_"), name) }
 
-impl<'a> ImplCtx<'a> {
-    fn new(out: &'a mut String) -> ImplCtx {
-        ImplCtx {
-            indentation: String::new(),
-            out,
-            stack: Vec::new(),
-        }
-    }
+fn bindname(stack: &[String]) -> String { stack.join("_") }
 
-    #[inline]
-    fn push_indent(&mut self) {
-        self.indentation += "    ";
-    }
+fn fname(stack: &[String]) -> String { stack.join(".") }
 
-    #[inline]
-    fn pop_indent(&mut self) {
-        self.indentation.truncate(if self.indentation.len() < 4 {
-            0
-        } else {
-            self.indentation.len() - 4
-        });
-    }
-
-    #[inline]
-    fn push_fname<S: Into<String>>(&mut self, name: S) {
-        self.stack.push(name.into());
-    }
-
-    #[inline]
-    fn pop_fname(&mut self) {
-        self.stack.pop();
-    }
-
-    #[inline]
-    fn swap_stack(&mut self, other: &mut Vec<String>) {
-        std::mem::swap(&mut self.stack, other);
-    }
-}
-
-fn varname(stack: &[String], name: &str) -> String {
-    format!("{}_{}", stack.join("_"), name)
-}
-
-fn bindname(stack: &[String]) -> String {
-    stack.join("_")
-}
-
-fn fname(stack: &[String]) -> String {
-    stack.join(".")
-}
-
-fn gen_write_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_write_impl_builtin_array(ctx: &mut GenCtx, ty: &check::Builtin, name: &str) {
     let fname = self::fname(&ctx.stack);
-    cat!(ctx, "writer.write_uint32({fname}.length);\n");
     let item_var = varname(&ctx.stack, "item");
-    // TODO: use index-based for loop instead
-    cat!(ctx, "for (let {item_var} of {fname}) {{\n");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var.clone());
-    ctx.push_indent();
 
-    match type_info {
+    // TODO: use index-based for loop instead
+    cat!(ctx, "writer.write_uint32({fname}.length);\n");
+    cat!(ctx, "for (let {item_var} of {fname}) {{\n");
+    cat!(ctx +++);
+
+    match ty {
         check::Builtin::String => {
             cat!(ctx, "writer.write_uint32({item_var}.length);\n");
             cat!(ctx, "writer.write_string({item_var});\n");
         }
-        _ => cat!(ctx, "writer.write_{type_name}({item_var});\n"),
+        _ => cat!(ctx, "writer.write_{name}({item_var});\n"),
     }
 
-    ctx.swap_stack(&mut old_stack);
-    ctx.pop_indent();
+    cat!(ctx ---);
     cat!(ctx, "}}\n");
+
+    ctx.swap_stack(&mut old_stack);
 }
 
-fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_write_impl_builtin(ctx: &mut GenCtx, ty: &check::Builtin, name: &str) {
     let fname = self::fname(&ctx.stack);
-    match type_info {
+    match ty {
         check::Builtin::String => {
             cat!(ctx, "writer.write_uint32({fname}.length);\n");
             cat!(ctx, "writer.write_string({fname});\n");
         }
-        _ => cat!(ctx, "writer.write_{type_name}({fname});\n"),
+        _ => cat!(ctx, "writer.write_{name}({fname});\n"),
     }
 }
 
-fn gen_write_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str) {
+fn gen_write_impl_enum_array(ctx: &mut GenCtx, ty: &check::Enum, _: &str) {
     let fname = self::fname(&ctx.stack);
-    cat!(ctx, "writer.write_uint32({fname}.length);\n");
     let item_var = varname(&ctx.stack, "item");
-    // TODO: use index-based for loop instead
-    cat!(ctx, "for (let {item_var} of {fname}) {{\n");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
-    ctx.push_fname(item_var);
-    ctx.push_indent();
+    ctx.push_fname(item_var.clone());
 
-    let repr_name = match &type_info.repr {
+    let repr_name = match &ty.repr {
         check::EnumRepr::U8 => "uint8",
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
-    let ifname = self::fname(&ctx.stack);
-    cat!(ctx, "writer.write_{repr_name}({ifname} as number);\n");
+    let itemfname = self::fname(&ctx.stack);
+
+    // TODO: use index-based for loop instead
+    cat!(ctx, "writer.write_uint32({fname}.length);\n");
+    cat!(ctx, "for (let {item_var} of {fname}) {{\n");
+    cat!(ctx +++);
+    cat!(ctx, "writer.write_{repr_name}({itemfname} as number);\n");
+    cat!(ctx ---);
+    cat!(ctx, "}}\n");
 
     ctx.swap_stack(&mut old_stack);
-    ctx.pop_indent();
-    cat!(ctx, "}}\n");
 }
 
-fn gen_write_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str) {
+fn gen_write_impl_enum(ctx: &mut GenCtx, type_info: &check::Enum, _: &str) {
+    let fname = self::fname(&ctx.stack);
     let repr_name = match &type_info.repr {
         check::EnumRepr::U8 => "uint8",
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
-    let fname = self::fname(&ctx.stack);
+
     cat!(ctx, "writer.write_{repr_name}({fname} as number);\n");
 }
 
-fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
+fn gen_write_impl_struct_array(ctx: &mut GenCtx, ty: &check::Struct, _: &str) {
     let fname = self::fname(&ctx.stack);
-    cat!(ctx, "writer.write_uint32({fname}.length);\n");
     let item_var = varname(&ctx.stack, "item");
-    // TODO: use index-based for loop instead
-    cat!(ctx, "for (let {item_var} of {fname}) {{\n");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
-    ctx.push_fname(item_var);
-    ctx.push_indent();
+    ctx.push_fname(item_var.clone());
 
-    for field in &type_info.fields {
-        ctx.push_fname(field.name);
-        let field_type = &*field.r#type.borrow();
-        match &field_type.1 {
-            check::ResolvedType::Builtin(field_type_info) if field.array => {
-                gen_write_impl_builtin_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Builtin(field_type_info) => {
-                gen_write_impl_builtin(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Enum(field_type_info) if field.array => {
-                gen_write_impl_enum_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Enum(field_type_info) => {
-                gen_write_impl_enum(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Struct(field_type_info) if field.array => {
-                gen_write_impl_struct_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Struct(field_type_info) => {
-                gen_write_impl_struct(ctx, &field_type_info, &field_type.0)
-            }
+    // TODO: use index-based for loop instead
+    cat!(ctx, "writer.write_uint32({fname}.length);\n");
+    cat!(ctx, "for (let {item_var} of {fname}) {{\n");
+    cat!(ctx +++);
+
+    for f in &ty.fields {
+        ctx.push_fname(f.name);
+        let fty = &*f.r#type.borrow();
+
+        use check::ResolvedType::*;
+        match &fty.1 {
+            Builtin(fty_info) if f.array => gen_write_impl_builtin_array(ctx, &fty_info, &fty.0),
+            Builtin(fty_info) => gen_write_impl_builtin(ctx, &fty_info, &fty.0),
+            Enum(fty_info) if f.array => gen_write_impl_enum_array(ctx, &fty_info, &fty.0),
+            Enum(fty_info) => gen_write_impl_enum(ctx, &fty_info, &fty.0),
+            Struct(fty_info) if f.array => gen_write_impl_struct_array(ctx, &fty_info, &fty.0),
+            Struct(fty_info) => gen_write_impl_struct(ctx, &fty_info, &fty.0),
         }
         ctx.pop_fname();
     }
 
-    ctx.swap_stack(&mut old_stack);
-    ctx.pop_indent();
+    cat!(ctx ---);
     cat!(ctx, "}}\n");
+
+    ctx.swap_stack(&mut old_stack);
 }
 
-fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
-    for field in &type_info.fields {
-        ctx.push_fname(field.name);
-        let mut old_stack = if field.optional {
+fn gen_write_impl_struct(ctx: &mut GenCtx, ty: &check::Struct, _: &str) {
+    for f in &ty.fields {
+        ctx.push_fname(f.name);
+        let mut old_stack = if f.optional {
             let fname = self::fname(&ctx.stack);
             let bind_var = bindname(&ctx.stack);
-            cat!(ctx, "let {bind_var} = {fname};\n");
-            cat!(ctx, "switch ({bind_var}) {{\n");
-            ctx.push_indent();
-            cat!(
-                ctx,
-                "case undefined: case null: writer.write_uint8(0); break;\n"
-            );
-            cat!(ctx, "default: {{\n");
-            ctx.push_indent();
-            cat!(ctx, "writer.write_uint8(1);\n");
-
             let mut old_stack = Vec::new();
             ctx.swap_stack(&mut old_stack);
-            ctx.push_fname(bind_var);
+            ctx.push_fname(bind_var.clone());
+
+            cat!(ctx, "let {bind_var} = {fname};\n");
+            cat!(ctx, "switch ({bind_var}) {{\n");
+            cat!(ctx +++);
+            cat!(ctx, "case undefined: case null: writer.write_uint8(0); break;\n");
+            cat!(ctx, "default: {{\n");
+            cat!(ctx +++);
+            cat!(ctx, "writer.write_uint8(1);\n");
 
             Some(old_stack)
         } else {
             None
         };
 
-        let field_type = &*field.r#type.borrow();
-        match &field_type.1 {
-            check::ResolvedType::Builtin(field_type_info) if field.array => {
-                gen_write_impl_builtin_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Builtin(field_type_info) => {
-                gen_write_impl_builtin(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Enum(field_type_info) if field.array => {
-                gen_write_impl_enum_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Enum(field_type_info) => {
-                gen_write_impl_enum(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Struct(field_type_info) if field.array => {
-                gen_write_impl_struct_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Struct(field_type_info) => {
-                gen_write_impl_struct(ctx, &field_type_info, &field_type.0)
-            }
+        let fty = &*f.r#type.borrow();
+
+        use check::ResolvedType::*;
+        match &fty.1 {
+            Builtin(fty_info) if f.array => gen_write_impl_builtin_array(ctx, &fty_info, &fty.0),
+            Builtin(fty_info) => gen_write_impl_builtin(ctx, &fty_info, &fty.0),
+            Enum(fty_info) if f.array => gen_write_impl_enum_array(ctx, &fty_info, &fty.0),
+            Enum(fty_info) => gen_write_impl_enum(ctx, &fty_info, &fty.0),
+            Struct(fty_info) if f.array => gen_write_impl_struct_array(ctx, &fty_info, &fty.0),
+            Struct(fty_info) => gen_write_impl_struct(ctx, &fty_info, &fty.0),
         }
 
         if old_stack.is_some() {
-            ctx.swap_stack(old_stack.as_mut().unwrap());
+            cat!(ctx ---);
+            cat!(ctx, "}}\n");
+            cat!(ctx ---);
+            cat!(ctx, "}}\n");
 
-            ctx.pop_indent();
-            cat!(ctx, "}}\n");
-            ctx.pop_indent();
-            cat!(ctx, "}}\n");
+            ctx.swap_stack(old_stack.as_mut().unwrap());
         }
         ctx.pop_fname();
     }
@@ -247,62 +181,51 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) 
 
 impl<'a> WriteImpl<TypeScript> for check::Export<'a> {
     fn gen_write_impl(&self, _: &mut TypeScript, name: &str, out: &mut String) {
-        let mut ctx = ImplCtx::new(out);
+        let mut ctx = GenCtx::new(out);
+
         ctx.push_fname("input");
-        append!(
-            ctx.out,
-            "export function write(writer: Writer, input: {name}) {{\n"
-        );
-        ctx.push_indent();
+        cat!(ctx, "export function write(writer: Writer, input: {name}) {{\n");
+        cat!(ctx +++);
         gen_write_impl_struct(&mut ctx, &self.r#struct, &name);
-        ctx.pop_indent();
-        append!(out, "}}\n");
+        cat!(ctx ---);
+        cat!(ctx, "}}\n");
     }
 }
 
-fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_read_impl_builtin_array(ctx: &mut GenCtx, type_info: &check::Builtin, type_name: &str) {
     let len_var = varname(&ctx.stack, "len");
     let fname = self::fname(&ctx.stack);
-    cat!(ctx, "let {len_var} = reader.read_uint32();\n");
     let out_var = fname.clone();
-    cat!(ctx, "{fname} = new Array({len_var});\n");
     let idx_var = varname(&ctx.stack, "index");
-    cat!(
-        ctx,
-        "for (let {idx_var} = 0; {idx_var} < {len_var}; ++{idx_var}) {{\n"
-    );
     let item_var = varname(&ctx.stack, "item");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var);
-    ctx.push_indent();
+
+    cat!(ctx, "let {len_var} = reader.read_uint32();\n");
+    cat!(ctx, "{fname} = new Array({len_var});\n");
+    cat!(ctx, "for (let {idx_var} = 0; {idx_var} < {len_var}; ++{idx_var}) {{\n");
+    cat!(ctx +++);
 
     match type_info {
         check::Builtin::String => {
             let len_var = varname(&ctx.stack, "len");
             cat!(ctx, "let {len_var} = reader.read_uint32();\n");
-            cat!(
-                ctx,
-                "{out_var}[{idx_var}] = reader.read_string({len_var});\n"
-            );
+            cat!(ctx, "{out_var}[{idx_var}] = reader.read_string({len_var});\n");
         }
         _ => cat!(ctx, "{out_var}[{idx_var}] = reader.read_{type_name}();\n"),
     }
 
-    ctx.swap_stack(&mut old_stack);
-    ctx.pop_indent();
+    cat!(ctx ---);
     cat!(ctx, "}}\n");
+
+    ctx.swap_stack(&mut old_stack);
 }
 
-fn gen_read_impl_builtin(
-    ctx: &mut ImplCtx,
-    type_info: &check::Builtin,
-    type_name: &str,
-    optional: bool,
-) {
+fn gen_read_impl_builtin(ctx: &mut GenCtx, type_info: &check::Builtin, type_name: &str, optional: bool) {
     if optional {
         cat!(ctx, "if (reader.read_uint8() > 0) {{\n");
-        ctx.push_indent();
+        cat!(ctx +++);
     }
     match type_info {
         check::Builtin::String => {
@@ -317,47 +240,45 @@ fn gen_read_impl_builtin(
         }
     }
     if optional {
-        ctx.pop_indent();
+        cat!(ctx ---);
         cat!(ctx, "}}\n");
     }
 }
 
-fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str) {
+fn gen_read_impl_enum_array(ctx: &mut GenCtx, type_info: &check::Enum, type_name: &str) {
     let len_var = varname(&ctx.stack, "len");
     let fname = self::fname(&ctx.stack);
-    cat!(ctx, "let {len_var} = reader.read_uint32();\n");
     let out_var = fname.clone();
-    cat!(ctx, "{fname} = new Array({len_var});\n");
     let idx_var = varname(&ctx.stack, "index");
-    cat!(
-        ctx,
-        "for (let {idx_var} = 0; {idx_var} < {len_var}; ++{idx_var}) {{\n"
-    );
     let item_var = varname(&ctx.stack, "item");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var);
-    ctx.push_indent();
 
     let repr_name = match type_info.repr {
         check::EnumRepr::U8 => "uint8",
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
+
+    cat!(ctx, "let {len_var} = reader.read_uint32();\n");
+    cat!(ctx, "{fname} = new Array({len_var});\n");
+    cat!(ctx, "for (let {idx_var} = 0; {idx_var} < {len_var}; ++{idx_var}) {{\n");
+    cat!(ctx +++);
     cat!(
         ctx,
         "{out_var}[{idx_var}] = {type_name}_try_from(reader.read_{repr_name}());\n"
     );
+    cat!(ctx ---);
+    cat!(ctx, "}}\n");
 
     ctx.swap_stack(&mut old_stack);
-    ctx.pop_indent();
-    cat!(ctx, "}}\n");
 }
 
-fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
+fn gen_read_impl_enum(ctx: &mut GenCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
     if optional {
         cat!(ctx, "if (reader.read_uint8() > 0) {{\n");
-        ctx.push_indent();
+        cat!(ctx +++);
     }
 
     let repr_name = match type_info.repr {
@@ -366,142 +287,112 @@ fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &st
         check::EnumRepr::U32 => "uint32",
     };
     let fname = self::fname(&ctx.stack);
-    cat!(
-        ctx,
-        "{fname} = {type_name}_try_from(reader.read_{repr_name}());\n"
-    );
+    cat!(ctx, "{fname} = {type_name}_try_from(reader.read_{repr_name}());\n");
 
     if optional {
-        ctx.pop_indent();
+        cat!(ctx ---);
         cat!(ctx, "}}\n");
     }
 }
 
-fn gen_read_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
+fn gen_read_impl_struct_array(ctx: &mut GenCtx, ty: &check::Struct, _: &str) {
     let len_var = varname(&ctx.stack, "len");
     let fname = self::fname(&ctx.stack);
-    cat!(ctx, "let {len_var} = reader.read_uint32();\n");
-    cat!(ctx, "{fname} = new Array({len_var});\n");
     let idx_var = varname(&ctx.stack, "index");
-    cat!(
-        ctx,
-        "for (let {idx_var} = 0; {idx_var} < {len_var}; ++{idx_var}) {{\n"
-    );
     let item_var = varname(&ctx.stack, "item");
     let mut old_stack = Vec::new();
     ctx.swap_stack(&mut old_stack);
     ctx.push_fname(item_var.clone());
-    ctx.push_indent();
 
+    cat!(ctx, "let {len_var} = reader.read_uint32();\n");
+    cat!(ctx, "{fname} = new Array({len_var});\n");
+    cat!(ctx, "for (let {idx_var} = 0; {idx_var} < {len_var}; ++{idx_var}) {{\n");
+    cat!(ctx +++);
     cat!(ctx, "let {item_var}: any = {{}};\n");
-    for field in &type_info.fields {
-        ctx.push_fname(field.name);
-        let field_type = &*field.r#type.borrow();
-        match &field_type.1 {
-            check::ResolvedType::Builtin(field_type_info) if field.array => {
-                gen_read_impl_builtin_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Builtin(field_type_info) => {
-                gen_read_impl_builtin(ctx, &field_type_info, &field_type.0, field.optional)
-            }
-            check::ResolvedType::Enum(field_type_info) if field.array => {
-                gen_read_impl_enum_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Enum(field_type_info) => {
-                gen_read_impl_enum(ctx, &field_type_info, &field_type.0, field.optional)
-            }
-            check::ResolvedType::Struct(field_type_info) if field.array => {
-                gen_read_impl_struct_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Struct(field_type_info) => {
-                gen_read_impl_struct(ctx, &field_type_info, &field_type.0, field.optional)
-            }
+
+    for f in &ty.fields {
+        ctx.push_fname(f.name);
+        let fty = &*f.r#type.borrow();
+        use check::ResolvedType::*;
+        match &fty.1 {
+            Builtin(fty_info) if f.array => gen_read_impl_builtin_array(ctx, &fty_info, &fty.0),
+            Builtin(fty_info) => gen_read_impl_builtin(ctx, &fty_info, &fty.0, f.optional),
+            Enum(fty_info) if f.array => gen_read_impl_enum_array(ctx, &fty_info, &fty.0),
+            Enum(fty_info) => gen_read_impl_enum(ctx, &fty_info, &fty.0, f.optional),
+            Struct(fty_info) if f.array => gen_read_impl_struct_array(ctx, &fty_info, &fty.0),
+            Struct(fty_info) => gen_read_impl_struct(ctx, &fty_info, &fty.0, f.optional),
         }
         ctx.pop_fname();
     }
 
-    ctx.swap_stack(&mut old_stack);
-    let ifname = self::fname(&ctx.stack);
-    cat!(ctx, "{ifname}[{idx_var}] = {item_var};\n");
-    ctx.pop_indent();
+    cat!(ctx, "{fname}[{idx_var}] = {item_var};\n");
+    cat!(ctx ---);
     cat!(ctx, "}}\n");
+
+    ctx.swap_stack(&mut old_stack);
 }
 
-fn gen_read_impl_struct(
-    ctx: &mut ImplCtx,
-    type_info: &check::Struct,
-    type_name: &str,
-    optional: bool,
-) {
+fn gen_read_impl_struct(ctx: &mut GenCtx, ty: &check::Struct, name: &str, optional: bool) {
     let (old_stack, fname, bind_var) = if optional {
         let fname = self::fname(&ctx.stack);
         let bind_var = bindname(&ctx.stack);
-        cat!(ctx, "if (reader.read_uint8() > 0) {{\n");
-        ctx.push_indent();
-        cat!(ctx, "let {bind_var} = {{}} as unknown as {type_name};\n");
-
         let mut old_stack = Vec::new();
         ctx.swap_stack(&mut old_stack);
-        ctx.push_fname(&bind_var);
+        ctx.push_fname(bind_var.clone());
+
+        cat!(ctx, "if (reader.read_uint8() > 0) {{\n");
+        cat!(ctx +++);
+        cat!(ctx, "let {bind_var} = {{}} as unknown as {name};\n");
 
         (Some(old_stack), fname, bind_var)
     } else {
         (None, String::new(), String::new())
     };
 
-    for field in &type_info.fields {
-        ctx.push_fname(field.name);
-        let field_type = &*field.r#type.borrow();
-        match &field_type.1 {
-            check::ResolvedType::Builtin(field_type_info) if field.array => {
-                gen_read_impl_builtin_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Builtin(field_type_info) => {
-                gen_read_impl_builtin(ctx, &field_type_info, &field_type.0, field.optional)
-            }
-            check::ResolvedType::Enum(field_type_info) if field.array => {
-                gen_read_impl_enum_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Enum(field_type_info) => {
-                gen_read_impl_enum(ctx, &field_type_info, &field_type.0, field.optional)
-            }
-            check::ResolvedType::Struct(field_type_info) if field.array => {
-                gen_read_impl_struct_array(ctx, &field_type_info, &field_type.0)
-            }
-            check::ResolvedType::Struct(field_type_info) => {
-                gen_read_impl_struct(ctx, &field_type_info, &field_type.0, field.optional)
-            }
+    for f in &ty.fields {
+        ctx.push_fname(f.name);
+        let fty = &*f.r#type.borrow();
+
+        use check::ResolvedType::*;
+        match &fty.1 {
+            Builtin(fty_info) if f.array => gen_read_impl_builtin_array(ctx, &fty_info, &fty.0),
+            Builtin(fty_info) => gen_read_impl_builtin(ctx, &fty_info, &fty.0, f.optional),
+            Enum(fty_info) if f.array => gen_read_impl_enum_array(ctx, &fty_info, &fty.0),
+            Enum(fty_info) => gen_read_impl_enum(ctx, &fty_info, &fty.0, f.optional),
+            Struct(fty_info) if f.array => gen_read_impl_struct_array(ctx, &fty_info, &fty.0),
+            Struct(fty_info) => gen_read_impl_struct(ctx, &fty_info, &fty.0, f.optional),
         }
         ctx.pop_fname();
     }
 
     if let Some(mut old_stack) = old_stack {
         cat!(ctx, "{fname} = {bind_var};\n");
+        cat!(ctx ---);
+        cat!(ctx, "}}\n");
 
         ctx.swap_stack(&mut old_stack);
-        ctx.pop_indent();
-        cat!(ctx, "}}\n");
     }
 }
 
 impl<'a> ReadImpl<TypeScript> for check::Export<'a> {
     fn gen_read_impl(&self, _: &mut TypeScript, name: &str, out: &mut String) {
-        let mut ctx = ImplCtx::new(out);
+        let mut ctx = GenCtx::new(out);
+
         ctx.push_fname("output");
-        cat!(
-            ctx,
-            "export function read(reader: Reader, output: {name}) {{\n"
-        );
-        ctx.push_indent();
+        cat!(ctx, "export function read(reader: Reader, output: {name}) {{\n");
+        cat!(ctx +++);
         gen_read_impl_struct(&mut ctx, &self.r#struct, &name, false);
-        ctx.pop_indent();
-        append!(ctx.out, "}}\n");
+        cat!(ctx ---);
+        cat!(ctx, "}}\n");
     }
 }
 
 impl<'a> Definition<TypeScript> for check::Struct<'a> {
     fn gen_def(&self, _: &mut TypeScript, name: &str, out: &mut String) {
-        append!(out, "export interface {name} {{\n");
+        let mut ctx = GenCtx::new(out);
+
+        cat!(ctx, "export interface {name} {{\n");
+        cat!(ctx +++);
         for field in self.fields.iter() {
             let type_info = &*field.r#type.borrow();
             let typename: &str = match &type_info.1 {
@@ -513,48 +404,52 @@ impl<'a> Definition<TypeScript> for check::Struct<'a> {
             };
             let opt = if field.optional { "?" } else { "" };
             let arr = if field.array { "[]" } else { "" };
-            append!(out, "    {field.name}{opt}: {typename}{arr},\n");
+
+            cat!(ctx, "{field.name}{opt}: {typename}{arr},\n");
         }
-        append!(out, "}}\n");
+        cat!(ctx ---);
+        cat!(ctx, "}}\n");
     }
 }
 
-fn gen_def_enum_tryfrom_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut String) {
-    let mut indent = String::new();
-    append!(
-        out,
-        "{indent}function {name}_try_from(value: number): {name} {{\n"
-    );
-    indent += "    ";
-    // this will not panic, because enums are never empty
+fn gen_def_enum_tryfrom_impl<'a>(ctx: &mut GenCtx, ty: &check::Enum<'a>, name: &str) {
     let (min, max) = (&ty.variants[0], &ty.variants[ty.variants.len() - 1]);
-    append!(
-        out,
-        "{indent}if ({name}.{min.name} <= value && value <= {name}.{max.name}) {{ return value; }}\n"
+
+    cat!(ctx, "function {name}_try_from(value: number): {name} {{\n");
+    cat!(ctx +++);
+    cat!(
+        ctx,
+        "if ({name}.{min.name} <= value && value <= {name}.{max.name}) {{ return value; }}\n"
     );
-    append!(
-        out,
-        "{indent}else throw new Error(`'${{value}}' is not a valid '{name}' value`);\n"
+    cat!(
+        ctx,
+        "else throw new Error(`'${{value}}' is not a valid '{name}' value`);\n"
     );
-    indent.truncate(indent.len() - 4);
-    append!(out, "}}\n");
+    cat!(ctx ---);
+    cat!(ctx, "}}\n");
 }
 
 impl<'a> Definition<TypeScript> for check::Enum<'a> {
     fn gen_def(&self, _: &mut TypeScript, name: &str, out: &mut String) {
-        append!(out, "export const enum {name} {{\n");
+        let mut ctx = GenCtx::new(out);
+
+        cat!(ctx, "export const enum {name} {{\n");
+        cat!(ctx +++);
         for variant in self.variants.iter() {
-            append!(out, "    {variant.name} = 1 << {variant.value},\n");
+            cat!(ctx, "{variant.name} = 1 << {variant.value},\n");
         }
-        append!(out, "}}\n");
-        gen_def_enum_tryfrom_impl(name, &self, out);
+        cat!(ctx ---);
+        cat!(ctx, "}}\n");
+
+        gen_def_enum_tryfrom_impl(&mut ctx, &self, name);
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn commmon_gen() {
@@ -650,16 +545,7 @@ export interface Test {
         use check::*;
         let flag = Enum {
             repr: EnumRepr::U8,
-            variants: vec![
-                EnumVariant {
-                    name: "A",
-                    value: 0,
-                },
-                EnumVariant {
-                    name: "B",
-                    value: 1,
-                },
-            ],
+            variants: vec![EnumVariant { name: "A", value: 0 }, EnumVariant { name: "B", value: 1 }],
         };
         let mut gen = Generator::<TypeScript>::new();
         gen.push_line();
@@ -737,19 +623,13 @@ function Flag_try_from(value: number): Flag {
                     },
                     StructField {
                         name: "struct_scalar",
-                        r#type: Ptr::new((
-                            "Position",
-                            ResolvedType::Struct(Struct { fields: vec![] }),
-                        )),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(Struct { fields: vec![] }))),
                         array: false,
                         optional: false,
                     },
                     StructField {
                         name: "struct_array",
-                        r#type: Ptr::new((
-                            "Position",
-                            ResolvedType::Struct(Struct { fields: vec![] }),
-                        )),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(Struct { fields: vec![] }))),
                         array: true,
                         optional: false,
                     },
@@ -995,16 +875,7 @@ export function read(reader: Reader, output: TestB) {
         use check::*;
         let flag = Enum {
             repr: EnumRepr::U8,
-            variants: vec![
-                EnumVariant {
-                    name: "A",
-                    value: 0,
-                },
-                EnumVariant {
-                    name: "B",
-                    value: 1,
-                },
-            ],
+            variants: vec![EnumVariant { name: "A", value: 0 }, EnumVariant { name: "B", value: 1 }],
         };
         let position = Struct {
             fields: vec![
@@ -1162,16 +1033,7 @@ export function write(writer: Writer, input: Test) {
         use check::*;
         let flag = Enum {
             repr: EnumRepr::U8,
-            variants: vec![
-                EnumVariant {
-                    name: "A",
-                    value: 0,
-                },
-                EnumVariant {
-                    name: "B",
-                    value: 1,
-                },
-            ],
+            variants: vec![EnumVariant { name: "A", value: 0 }, EnumVariant { name: "B", value: 1 }],
         };
         let position = Struct {
             fields: vec![

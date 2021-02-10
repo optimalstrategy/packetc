@@ -1,11 +1,13 @@
-pub mod impl_ctx;
+pub mod gen_ctx;
 pub mod rust;
 pub mod ts;
 
-use super::*;
-use fstrings::format_args_f;
-use impl_ctx::ImplCtx;
 use std::fmt::Write;
+
+use fstrings::format_args_f;
+use gen_ctx::GenCtx;
+
+use super::*;
 
 const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
@@ -42,7 +44,10 @@ macro_rules! append {
 
 #[macro_export]
 macro_rules! cat {
-    ($ctx:expr, $($arg:tt)*) => {{
+    ($ctx:ident +++) => { $ctx.push_indent() };
+    ($ctx:ident ---) => { $ctx.pop_indent() };
+
+    ($ctx:ident, $($arg:tt)*) => {{
         let fmt = fstrings::format_f!($($arg)*);
         fstrings::write_f!($ctx.out, "{}{}", $ctx.indentation, fmt).unwrap()
     }};
@@ -80,9 +85,7 @@ impl<L: Language + Default + Common> Generator<L> {
     }
 
     /// Anything that is present in all files of a given language
-    pub fn push_common(&mut self) {
-        self.state.gen_common(&mut self.buffer);
-    }
+    pub fn push_common(&mut self) { self.state.gen_common(&mut self.buffer); }
 
     /// A definition is a struct, interface, etc - anything that defines
     /// the layout of data for a given language
@@ -99,9 +102,7 @@ impl<L: Language + Default + Common> Generator<L> {
         which.gen_read_impl(&mut self.state, name, &mut self.buffer);
     }
 
-    pub fn finish(mut self) -> String {
-        std::mem::take(&mut self.buffer)
-    }
+    pub fn finish(mut self) -> String { std::mem::take(&mut self.buffer) }
 }
 
 pub trait Common {

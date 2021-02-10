@@ -1,10 +1,12 @@
 //! Contains all the type-checking code
 //!
-//! Type-checking is done in two passes, so that it's possible to have lexical scoping.
-use super::*;
+//! Type-checking is done in two passes, so that it's possible to have lexical
+//! scoping.
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 use std::{cell::RefCell, fmt, fmt::Display, fmt::Formatter};
+
+use super::*;
 
 // TODO: real error type + report in a nice way
 
@@ -107,18 +109,12 @@ impl<'a> ResolvedType<'a> {
 #[derive(Clone, PartialEq, Debug)]
 pub struct Ptr<T>(pub Rc<RefCell<T>>);
 impl<T> Ptr<T> {
-    pub fn new(value: T) -> Ptr<T> {
-        Ptr(Rc::new(RefCell::new(value)))
-    }
-    pub fn strong_count(&self) -> usize {
-        Rc::strong_count(&self.0)
-    }
+    pub fn new(value: T) -> Ptr<T> { Ptr(Rc::new(RefCell::new(value))) }
+    pub fn strong_count(&self) -> usize { Rc::strong_count(&self.0) }
 }
 impl<T> std::ops::Deref for Ptr<T> {
     type Target = Rc<RefCell<T>>;
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
+    fn deref(&self) -> &Self::Target { &self.0 }
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -129,38 +125,14 @@ pub struct Export<'a> {
 
 fn get_builtins<'a>() -> HashMap<&'a str, Ptr<(&'a str, ResolvedType<'a>)>> {
     vec![
-        (
-            "uint8",
-            Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8))),
-        ),
-        (
-            "uint16",
-            Ptr::new(("uint16", ResolvedType::Builtin(Builtin::Uint16))),
-        ),
-        (
-            "uint32",
-            Ptr::new(("uint32", ResolvedType::Builtin(Builtin::Uint32))),
-        ),
-        (
-            "int8",
-            Ptr::new(("int8", ResolvedType::Builtin(Builtin::Int8))),
-        ),
-        (
-            "int16",
-            Ptr::new(("int16", ResolvedType::Builtin(Builtin::Int16))),
-        ),
-        (
-            "int32",
-            Ptr::new(("int32", ResolvedType::Builtin(Builtin::Int32))),
-        ),
-        (
-            "float",
-            Ptr::new(("float", ResolvedType::Builtin(Builtin::Float))),
-        ),
-        (
-            "string",
-            Ptr::new(("string", ResolvedType::Builtin(Builtin::String))),
-        ),
+        ("uint8", Ptr::new(("uint8", ResolvedType::Builtin(Builtin::Uint8)))),
+        ("uint16", Ptr::new(("uint16", ResolvedType::Builtin(Builtin::Uint16)))),
+        ("uint32", Ptr::new(("uint32", ResolvedType::Builtin(Builtin::Uint32)))),
+        ("int8", Ptr::new(("int8", ResolvedType::Builtin(Builtin::Int8)))),
+        ("int16", Ptr::new(("int16", ResolvedType::Builtin(Builtin::Int16)))),
+        ("int32", Ptr::new(("int32", ResolvedType::Builtin(Builtin::Int32)))),
+        ("float", Ptr::new(("float", ResolvedType::Builtin(Builtin::Float)))),
+        ("string", Ptr::new(("string", ResolvedType::Builtin(Builtin::String)))),
     ]
     .into_iter()
     .collect()
@@ -191,10 +163,7 @@ fn resolve_struct_field<'a>(
     }
 }
 
-fn resolve_enum<'a>(
-    name: &'a str,
-    ty: ast::Enum<'a>,
-) -> Result<(EnumRepr, Vec<EnumVariant<'a>>), String> {
+fn resolve_enum<'a>(name: &'a str, ty: ast::Enum<'a>) -> Result<(EnumRepr, Vec<EnumVariant<'a>>), String> {
     // find the smallest possible representation for this enum
     let repr = match ty.0.len() {
         n if n == 0 => return Err(format!("Enum '{}' must have at least one variant", name)),
@@ -209,10 +178,7 @@ fn resolve_enum<'a>(
     let mut variants = Vec::with_capacity(ty.0.len());
     for variant in ty.0.into_iter() {
         if variant_names.contains(&variant) {
-            return Err(format!(
-                "Duplicate variant '{}' on enum '{}'",
-                variant, name
-            ));
+            return Err(format!("Duplicate variant '{}' on enum '{}'", variant, name));
         }
         variant_names.insert(variant);
         variants.push(EnumVariant {
@@ -268,10 +234,7 @@ fn resolve_one_first_pass<'a>(
             }
             if fields.len() == s.0.len() {
                 unresolved.remove(&name);
-                first_pass.insert(
-                    name,
-                    Ptr::new((name, ResolvedType::Struct(Struct { fields }))),
-                );
+                first_pass.insert(name, Ptr::new((name, ResolvedType::Struct(Struct { fields }))));
             }
         }
     }
@@ -321,8 +284,7 @@ fn resolve_one_second_pass<'a>(
         let mut not_resolved = Vec::new();
         let mut fields = Vec::new();
         for (field_name, field_type) in s.0.into_iter() {
-            if let Some(field) = resolve_struct_field(field_name, field_type.clone(), cache, name)?
-            {
+            if let Some(field) = resolve_struct_field(field_name, field_type.clone(), cache, name)? {
                 fields.push(field);
             } else {
                 not_resolved.push((field_name, field_type));
@@ -330,10 +292,7 @@ fn resolve_one_second_pass<'a>(
         }
         if not_resolved.is_empty() {
             // if all the fields are resolved, construct the type and cache it
-            cache.insert(
-                name,
-                Ptr::new((name, ResolvedType::Struct(Struct { fields }))),
-            );
+            cache.insert(name, Ptr::new((name, ResolvedType::Struct(Struct { fields }))));
         } else {
             // otherwise, for each field that couldn't be resolved, try to resolve it
             for (_, field_type) in not_resolved.iter() {
@@ -346,15 +305,13 @@ fn resolve_one_second_pass<'a>(
                     // it may fail, so propagate the error out
                     resolve_one_second_pass(ftype_name, utype, cache, visited, unresolved)?;
                 } else if !cache.contains_key(&ftype_name) {
-                    //  if the field's typename is unresolved and not in the cache (resolved), it doesn't exist.
-                    return Err(format!(
-                        "Declaration for type '{}' does not exist",
-                        ftype_name
-                    ));
+                    //  if the field's typename is unresolved and not in the cache (resolved), it
+                    // doesn't exist.
+                    return Err(format!("Declaration for type '{}' does not exist", ftype_name));
                 }
             }
-            // if we get here, it means all the field's types were successfully resolved and placed in the cache
-            // so finish resolving our fields
+            // if we get here, it means all the field's types were successfully resolved and
+            // placed in the cache so finish resolving our fields
             let mut now_resolved = Vec::new();
             for (fname, fty) in not_resolved.into_iter() {
                 now_resolved.push(resolve_struct_field(fname, fty, cache, name)?.unwrap());
@@ -405,10 +362,7 @@ fn collect_used_types<'a>(visited: &mut HashSet<&'a str>, ty: &(&'a str, Resolve
     }
 }
 
-fn remove_unused<'a>(
-    visited: HashSet<&'a str>,
-    resolved: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType)>>,
-) {
+fn remove_unused<'a>(visited: HashSet<&'a str>, resolved: &mut HashMap<&'a str, Ptr<(&'a str, ResolvedType)>>) {
     // TODO: print a warning (if configured) for each unused type
     resolved.retain(|name, _| visited.contains(name));
 }
@@ -428,10 +382,7 @@ fn resolve_export<'a>(
 
             Ok(Export { name, r#struct: ty })
         } else {
-            Err(format!(
-                "Attempted to export '{}', which is not a struct",
-                name
-            ))
+            Err(format!("Attempted to export '{}', which is not a struct", name))
         }
     } else {
         Err(format!("Export '{}' could not be resolved", name))
@@ -461,11 +412,9 @@ pub fn type_check(ast: ast::AST<'_>) -> Result<Resolved<'_>, String> {
     if let Err(err) = resolve_first_pass(ast, &cache, &mut first_pass, &mut unresolved) {
         return Err(err);
     };
-    // second pass: collect structs with other structs (made up of builtins) as field types
-    let mut cache = cache
-        .into_iter()
-        .chain(first_pass)
-        .collect::<HashMap<_, _>>();
+    // second pass: collect structs with other structs (made up of builtins) as
+    // field types
+    let mut cache = cache.into_iter().chain(first_pass).collect::<HashMap<_, _>>();
     if let Err(err) = resolve_second_pass(&mut cache, unresolved) {
         return Err(err);
     };
@@ -474,18 +423,16 @@ pub fn type_check(ast: ast::AST<'_>) -> Result<Resolved<'_>, String> {
         Ok(e) => e,
         Err(err) => return Err(err),
     };
-    Ok(Resolved {
-        export,
-        types: cache,
-    })
+    Ok(Resolved { export, types: cache })
 }
 
 #[cfg(test)]
 mod tests {
     use std::vec;
 
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn type_check_passes() {
@@ -575,10 +522,7 @@ mod tests {
             Node::Export("Position"),
             Node::Export("Position"),
         ];
-        assert_eq!(
-            type_check(test).unwrap_err(),
-            "Schema has more than one export"
-        );
+        assert_eq!(type_check(test).unwrap_err(), "Schema has more than one export");
     }
 
     #[test]
@@ -606,10 +550,7 @@ mod tests {
             ),
             Node::Export("Test"),
         ];
-        assert_eq!(
-            type_check(test).unwrap_err(),
-            "Duplicate variant 'A' on enum 'Flag'"
-        );
+        assert_eq!(type_check(test).unwrap_err(), "Duplicate variant 'A' on enum 'Flag'");
     }
 
     #[test]
@@ -669,10 +610,9 @@ mod tests {
             Node::Decl(
                 "Flag",
                 Type::Enum(Enum(vec![
-                    "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11",
-                    "A12", "A13", "A14", "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22",
-                    "A23", "A24", "A25", "A26", "A27", "A28", "A29", "A30", "A31",
-                    // one too many
+                    "A0", "A1", "A2", "A3", "A4", "A5", "A6", "A7", "A8", "A9", "A10", "A11", "A12", "A13", "A14",
+                    "A15", "A16", "A17", "A18", "A19", "A20", "A21", "A22", "A23", "A24", "A25", "A26", "A27", "A28",
+                    "A29", "A30", "A31", // one too many
                     "A32",
                 ])),
             ),
@@ -714,10 +654,7 @@ mod tests {
                 "A",
                 Type::Struct(Struct(vec![("b", Unresolved("int32", false, false))])),
             ),
-            Node::Decl(
-                "B",
-                Type::Struct(Struct(vec![("a", Unresolved("A", false, false))])),
-            ),
+            Node::Decl("B", Type::Struct(Struct(vec![("a", Unresolved("A", false, false))]))),
             Node::Decl(
                 "D",
                 Type::Struct(Struct(vec![
@@ -799,10 +736,7 @@ mod tests {
         // the type does not exist
         use ast::*;
         let test: AST = vec![Node::Export("Test")];
-        assert_eq!(
-            type_check(test).unwrap_err(),
-            "Export 'Test' could not be resolved"
-        );
+        assert_eq!(type_check(test).unwrap_err(), "Export 'Test' could not be resolved");
     }
 
     #[test]

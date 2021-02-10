@@ -1,6 +1,8 @@
-use super::*;
-use fstrings::{format_args_f, format_f};
 use std::collections::HashSet;
+
+use fstrings::{format_args_f, format_f};
+
+use super::*;
 
 #[derive(Clone, PartialEq, Debug, Default)]
 pub struct Rust {
@@ -18,19 +20,13 @@ impl Common for Rust {
     }
 }
 
-fn varname(stack: &[String], name: &str) -> String {
-    format!("{}_{}", stack.join("_"), name)
-}
+fn varname(stack: &[String], name: &str) -> String { format!("{}_{}", stack.join("_"), name) }
 
-fn bindname(stack: &[String]) -> String {
-    stack.join("_")
-}
+fn bindname(stack: &[String]) -> String { stack.join("_") }
 
-fn fname(stack: &[String]) -> String {
-    stack.join(".")
-}
+fn fname(stack: &[String]) -> String { stack.join(".") }
 
-fn gen_write_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_write_impl_builtin_array(ctx: &mut GenCtx, type_info: &check::Builtin, type_name: &str) {
     let fname = fname(&ctx.stack);
     cat!(ctx, "writer.write_uint32({fname}.len() as u32);\n");
     let item_var = varname(&ctx.stack, "item");
@@ -53,7 +49,7 @@ fn gen_write_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, t
     cat!(ctx, "}}\n");
 }
 
-fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_write_impl_builtin(ctx: &mut GenCtx, type_info: &check::Builtin, type_name: &str) {
     let fname = fname(&ctx.stack);
     match type_info {
         check::Builtin::String => {
@@ -64,7 +60,7 @@ fn gen_write_impl_builtin(ctx: &mut ImplCtx, type_info: &check::Builtin, type_na
     }
 }
 
-fn gen_write_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str) {
+fn gen_write_impl_enum_array(ctx: &mut GenCtx, type_info: &check::Enum, _: &str) {
     let fname = fname(&ctx.stack);
     cat!(ctx, "writer.write_uint32({fname}.len() as u32);\n");
     let item_var = varname(&ctx.stack, "item");
@@ -80,30 +76,24 @@ fn gen_write_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str
         check::EnumRepr::U32 => "uint32",
     };
     let ifname = self::fname(&ctx.stack);
-    cat!(
-        ctx,
-        "writer.write_{repr_name}({ifname} as {type_info.repr});\n"
-    );
+    cat!(ctx, "writer.write_{repr_name}({ifname} as {type_info.repr});\n");
 
     ctx.swap_stack(&mut old_stack);
     ctx.pop_indent();
     cat!(ctx, "}}\n");
 }
 
-fn gen_write_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, _: &str) {
+fn gen_write_impl_enum(ctx: &mut GenCtx, type_info: &check::Enum, _: &str) {
     let repr_name = match &type_info.repr {
         check::EnumRepr::U8 => "uint8",
         check::EnumRepr::U16 => "uint16",
         check::EnumRepr::U32 => "uint32",
     };
     let fname = fname(&ctx.stack);
-    cat!(
-        ctx,
-        "writer.write_{repr_name}({fname} as {type_info.repr});\n"
-    );
+    cat!(ctx, "writer.write_{repr_name}({fname} as {type_info.repr});\n");
 }
 
-fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: &str) {
+fn gen_write_impl_struct_array(ctx: &mut GenCtx, type_info: &check::Struct, _: &str) {
     let fname = fname(&ctx.stack);
     cat!(ctx, "writer.write_uint32({fname}.len() as u32);\n");
     let item_var = varname(&ctx.stack, "item");
@@ -126,15 +116,11 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
             check::ResolvedType::Enum(field_type_info) if field.array => {
                 gen_write_impl_enum_array(ctx, &field_type_info, &field_type.0)
             }
-            check::ResolvedType::Enum(field_type_info) => {
-                gen_write_impl_enum(ctx, &field_type_info, &field_type.0)
-            }
+            check::ResolvedType::Enum(field_type_info) => gen_write_impl_enum(ctx, &field_type_info, &field_type.0),
             check::ResolvedType::Struct(field_type_info) if field.array => {
                 gen_write_impl_struct_array(ctx, &field_type_info, &field_type.0)
             }
-            check::ResolvedType::Struct(field_type_info) => {
-                gen_write_impl_struct(ctx, &field_type_info, &field_type.0)
-            }
+            check::ResolvedType::Struct(field_type_info) => gen_write_impl_struct(ctx, &field_type_info, &field_type.0),
         }
         ctx.pop_fname();
     }
@@ -148,12 +134,10 @@ fn gen_write_impl_struct_array(ctx: &mut ImplCtx, type_info: &check::Struct, _: 
 // TODO: make write_impls the same as in gen::ts
 fn is_rty_struct(ty: &check::ResolvedType) -> bool {
     std::mem::discriminant(ty)
-        == std::mem::discriminant(&check::ResolvedType::Struct(check::Struct {
-            fields: Vec::new(),
-        }))
+        == std::mem::discriminant(&check::ResolvedType::Struct(check::Struct { fields: Vec::new() }))
 }
 
-fn gen_write_impl_struct(ctx: &mut ImplCtx, ty: &check::Struct, _: &str) {
+fn gen_write_impl_struct(ctx: &mut GenCtx, ty: &check::Struct, _: &str) {
     for f in &ty.fields {
         ctx.push_fname(f.name);
         let fty = &*f.r#type.borrow();
@@ -201,7 +185,7 @@ fn gen_write_impl_struct(ctx: &mut ImplCtx, ty: &check::Struct, _: &str) {
 
 impl<'a> WriteImpl<Rust> for check::Export<'a> {
     fn gen_write_impl(&self, _: &mut Rust, name: &str, out: &mut String) {
-        let mut ctx = ImplCtx::new(out);
+        let mut ctx = GenCtx::new(out);
         ctx.push_fname("input");
         append!(
             ctx.out,
@@ -214,7 +198,7 @@ impl<'a> WriteImpl<Rust> for check::Export<'a> {
     }
 }
 
-fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, type_name: &str) {
+fn gen_read_impl_builtin_array(ctx: &mut GenCtx, type_info: &check::Builtin, type_name: &str) {
     let len_var = varname(&ctx.stack, "len");
     let fname = fname(&ctx.stack);
     let out_var = fname.clone();
@@ -244,12 +228,7 @@ fn gen_read_impl_builtin_array(ctx: &mut ImplCtx, type_info: &check::Builtin, ty
     ctx.swap_stack(&mut old_stack);
 }
 
-fn gen_read_impl_builtin(
-    ctx: &mut ImplCtx,
-    type_info: &check::Builtin,
-    type_name: &str,
-    optional: bool,
-) {
+fn gen_read_impl_builtin(ctx: &mut GenCtx, type_info: &check::Builtin, type_name: &str, optional: bool) {
     if optional {
         cat!(ctx, "if reader.read_uint8()? > 0 {{\n");
         ctx.push_indent();
@@ -269,10 +248,7 @@ fn gen_read_impl_builtin(
             );
         }
         _ => {
-            cat!(
-                ctx,
-                "{fname} = {opt_prefix}reader.read_{type_name}()?{opt_suffix};\n"
-            )
+            cat!(ctx, "{fname} = {opt_prefix}reader.read_{type_name}()?{opt_suffix};\n")
         }
     }
 
@@ -282,7 +258,7 @@ fn gen_read_impl_builtin(
     }
 }
 
-fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str) {
+fn gen_read_impl_enum_array(ctx: &mut GenCtx, type_info: &check::Enum, type_name: &str) {
     let len_var = varname(&ctx.stack, "len");
     let fname = fname(&ctx.stack);
     cat!(ctx, "let {len_var} = reader.read_uint32()? as usize;\n");
@@ -310,7 +286,7 @@ fn gen_read_impl_enum_array(ctx: &mut ImplCtx, type_info: &check::Enum, type_nam
     cat!(ctx, "}}\n");
 }
 
-fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
+fn gen_read_impl_enum(ctx: &mut GenCtx, type_info: &check::Enum, type_name: &str, optional: bool) {
     if optional {
         cat!(ctx, "if reader.read_uint8()? > 0 {{\n");
         ctx.push_indent();
@@ -335,7 +311,7 @@ fn gen_read_impl_enum(ctx: &mut ImplCtx, type_info: &check::Enum, type_name: &st
     }
 }
 
-fn gen_read_impl_struct_array(ctx: &mut ImplCtx, ty: &check::Struct, type_name: &str) {
+fn gen_read_impl_struct_array(ctx: &mut GenCtx, ty: &check::Struct, type_name: &str) {
     let len_var = varname(&ctx.stack, "len");
     let fname = fname(&ctx.stack);
     cat!(ctx, "let {len_var} = reader.read_uint32()? as usize;\n");
@@ -371,7 +347,7 @@ fn gen_read_impl_struct_array(ctx: &mut ImplCtx, ty: &check::Struct, type_name: 
     cat!(ctx, "}}\n");
 }
 
-fn gen_read_impl_struct(ctx: &mut ImplCtx, ty: &check::Struct, name: &str, optional: bool) {
+fn gen_read_impl_struct(ctx: &mut GenCtx, ty: &check::Struct, name: &str, optional: bool) {
     let (old_stack, fname, bind_var) = if optional {
         let fname = fname(&ctx.stack);
         let bind_var = bindname(&ctx.stack);
@@ -417,7 +393,7 @@ fn gen_read_impl_struct(ctx: &mut ImplCtx, ty: &check::Struct, name: &str, optio
 
 impl<'a> ReadImpl<Rust> for check::Export<'a> {
     fn gen_read_impl(&self, _: &mut Rust, name: &str, out: &mut String) {
-        let mut ctx = ImplCtx::new(out);
+        let mut ctx = GenCtx::new(out);
         ctx.push_fname("output");
         append!(
             ctx.out,
@@ -483,10 +459,7 @@ fn gen_def_enum_default_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut Str
 fn gen_def_enum_tryfrom_impl<'a>(name: &str, ty: &check::Enum<'a>, out: &mut String) {
     let mut indent = String::new();
 
-    append!(
-        out,
-        "{indent}impl std::convert::TryFrom<{ty.repr}> for {name} {{\n"
-    );
+    append!(out, "{indent}impl std::convert::TryFrom<{ty.repr}> for {name} {{\n");
     indent += "    ";
     append!(out, "{indent}type Error = packet::Error;\n");
     append!(
@@ -529,8 +502,9 @@ impl<'a> Definition<Rust> for check::Enum<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
+
+    use super::*;
 
     #[test]
     fn commmon_gen() {
@@ -629,16 +603,7 @@ pub struct Test {
         use check::*;
         let flag = Enum {
             repr: EnumRepr::U8,
-            variants: vec![
-                EnumVariant {
-                    name: "A",
-                    value: 0,
-                },
-                EnumVariant {
-                    name: "B",
-                    value: 1,
-                },
-            ],
+            variants: vec![EnumVariant { name: "A", value: 0 }, EnumVariant { name: "B", value: 1 }],
         };
         let mut gen = Generator::<Rust>::new();
         gen.push_line();
@@ -729,19 +694,13 @@ impl std::convert::TryFrom<u8> for Flag {
                     },
                     StructField {
                         name: "struct_scalar",
-                        r#type: Ptr::new((
-                            "Position",
-                            ResolvedType::Struct(Struct { fields: vec![] }),
-                        )),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(Struct { fields: vec![] }))),
                         array: false,
                         optional: false,
                     },
                     StructField {
                         name: "struct_array",
-                        r#type: Ptr::new((
-                            "Position",
-                            ResolvedType::Struct(Struct { fields: vec![] }),
-                        )),
+                        r#type: Ptr::new(("Position", ResolvedType::Struct(Struct { fields: vec![] }))),
                         array: true,
                         optional: false,
                     },
@@ -988,16 +947,7 @@ pub fn read(reader: &mut packet::reader::Reader, output: &mut TestB) -> Result<(
         use check::*;
         let flag = Enum {
             repr: EnumRepr::U8,
-            variants: vec![
-                EnumVariant {
-                    name: "A",
-                    value: 0,
-                },
-                EnumVariant {
-                    name: "B",
-                    value: 1,
-                },
-            ],
+            variants: vec![EnumVariant { name: "A", value: 0 }, EnumVariant { name: "B", value: 1 }],
         };
         let position = Struct {
             fields: vec![
@@ -1152,16 +1102,7 @@ pub fn write(writer: &mut packet::writer::Writer, input: &Test) {
         use check::*;
         let flag = Enum {
             repr: EnumRepr::U8,
-            variants: vec![
-                EnumVariant {
-                    name: "A",
-                    value: 0,
-                },
-                EnumVariant {
-                    name: "B",
-                    value: 1,
-                },
-            ],
+            variants: vec![EnumVariant { name: "A", value: 0 }, EnumVariant { name: "B", value: 1 }],
         };
         let position = Struct {
             fields: vec![
